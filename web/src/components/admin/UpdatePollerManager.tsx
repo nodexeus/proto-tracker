@@ -29,7 +29,8 @@ import {
   IconCheck,
   IconClock,
 } from '@tabler/icons-react';
-import { useUpdatePoller } from '../../hooks/useUpdatePoller';
+import { useContext } from 'react';
+import { UpdatePollerContext } from '../../contexts/UpdatePollerContext';
 import { AdminService } from '../../services/admin';
 import { useAuth } from '../../hooks/useAuth';
 import { getApiConfig } from '../../utils';
@@ -45,35 +46,24 @@ export function UpdatePollerManager({
   onGitHubApiKeyChange 
 }: UpdatePollerManagerProps = {}) {
   const { user } = useAuth();
-  const [localGitHubKey, setLocalGitHubKey] = useState('');
-  const [localPollingInterval, setLocalPollingInterval] = useState(30);
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Check if we have context available
+  const context = useContext(UpdatePollerContext);
+  
+  // If no context, show a message instead of crashing
+  if (!context) {
+    return (
+      <Alert color="orange" title="UpdatePoller Not Available">
+        <Text size="sm">
+          The GitHub update poller is not available. Please ensure the UpdatePollerProvider is properly configured.
+        </Text>
+      </Alert>
+    );
+  }
 
   const apiConfig = getApiConfig(user?.apiKey);
   const adminService = new AdminService(apiConfig);
-
-  // Fetch GitHub API key from database on mount
-  useEffect(() => {
-    const fetchGitHubConfig = async () => {
-      try {
-        const config = await adminService.getGitHubConfig();
-        if (config?.api_key) {
-          setLocalGitHubKey(config.api_key);
-          console.log('UpdatePollerManager: Loaded GitHub API key from database');
-        }
-      } catch (error) {
-        console.log('UpdatePollerManager: No GitHub config found in database, using props or empty');
-        // Fallback to props if database fetch fails
-        setLocalGitHubKey(githubApiKey || '');
-      } finally {
-        // Removed setFetchingGitHubKey since the variable was removed
-      }
-    };
-
-    if (user?.apiKey) {
-      fetchGitHubConfig();
-    }
-  }, [user?.apiKey, githubApiKey]);
 
   const {
     isRunning,
@@ -87,12 +77,21 @@ export function UpdatePollerManager({
     resetPollTimestamps,
     isPolling,
     isSaving,
-  } = useUpdatePoller({
-    githubApiKey: localGitHubKey,
-    pollingIntervalMinutes: localPollingInterval,
-  });
+    currentGithubApiKey,
+    currentPollingInterval,
+  } = context;
 
-  const handleStart = () => {
+  // Local state for UI (separate from global state)
+  const [localGitHubKey, setLocalGitHubKey] = useState(currentGithubApiKey);
+  const [localPollingInterval, setLocalPollingInterval] = useState<number | string>(currentPollingInterval);
+
+  // Update local state when global state changes
+  useEffect(() => {
+    setLocalGitHubKey(currentGithubApiKey);
+    setLocalPollingInterval(currentPollingInterval);
+  }, [currentGithubApiKey, currentPollingInterval]);
+
+  const handleStart = async () => {
     if (!localGitHubKey.trim()) {
       notifications.show({
         title: 'GitHub API Key Required',
@@ -103,25 +102,43 @@ export function UpdatePollerManager({
       return;
     }
 
-    setGitHubApiKey(localGitHubKey);
-    start();
-    
-    notifications.show({
-      title: 'Update Poller Started',
-      message: 'The GitHub update poller is now running',
-      color: 'green',
-      icon: <IconPlayerPlay size={16} />,
-    });
+    try {
+      setGitHubApiKey(localGitHubKey);
+      await start();
+      
+      notifications.show({
+        title: 'Update Poller Started',
+        message: 'The GitHub update poller is now running and state saved to database',
+        color: 'green',
+        icon: <IconPlayerPlay size={16} />,
+      });
+    } catch (error) {
+      notifications.show({
+        title: 'Failed to Start Poller',
+        message: 'Could not start the GitHub update poller',
+        color: 'red',
+        icon: <IconAlertCircle size={16} />,
+      });
+    }
   };
 
-  const handleStop = () => {
-    stop();
-    notifications.show({
-      title: 'Update Poller Stopped',
-      message: 'The GitHub update poller has been stopped',
-      color: 'blue',
-      icon: <IconPlayerPause size={16} />,
-    });
+  const handleStop = async () => {
+    try {
+      await stop();
+      notifications.show({
+        title: 'Update Poller Stopped',
+        message: 'The GitHub update poller has been stopped and state saved to database',
+        color: 'blue',
+        icon: <IconPlayerPause size={16} />,
+      });
+    } catch (error) {
+      notifications.show({
+        title: 'Failed to Stop Poller',
+        message: 'Could not stop the GitHub update poller',
+        color: 'red',
+        icon: <IconAlertCircle size={16} />,
+      });
+    }
   };
 
   const handlePollNow = async () => {
@@ -154,20 +171,40 @@ export function UpdatePollerManager({
     }
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (localGitHubKey.trim()) {
       setGitHubApiKey(localGitHubKey);
       onGitHubApiKeyChange?.(localGitHubKey);
     }
-    updatePollingInterval(localPollingInterval);
-    setShowSettings(false);
     
-    notifications.show({
-      title: 'Settings Saved',
-      message: 'GitHub update poller settings have been updated',
-      color: 'green',
-      icon: <IconSettings size={16} />,
-    });
+    // Handle polling interval - use default of 5 minutes if empty or invalid
+    const intervalValue = typeof localPollingInterval === 'string' 
+      ? parseInt(localPollingInterval, 10) 
+      : localPollingInterval;
+    
+    const validInterval = !isNaN(intervalValue) && intervalValue >= 1 && intervalValue <= 1440 
+      ? intervalValue 
+      : 5; // Default to 5 minutes if invalid
+    
+    try {
+      await updatePollingInterval(validInterval);
+      setLocalPollingInterval(validInterval); // Update UI to show the saved value
+      setShowSettings(false);
+      
+      notifications.show({
+        title: 'Settings Saved',
+        message: `Polling interval saved to database: ${validInterval} minutes`,
+        color: 'green',
+        icon: <IconSettings size={16} />,
+      });
+    } catch (error) {
+      notifications.show({
+        title: 'Save Failed',
+        message: 'Failed to save polling interval to database',
+        color: 'red',
+        icon: <IconAlertCircle size={16} />,
+      });
+    }
   };
 
   return (
@@ -281,9 +318,13 @@ export function UpdatePollerManager({
                 label="Polling Interval (minutes)"
                 description="How often to check for updates"
                 value={localPollingInterval}
-                onChange={(value) => setLocalPollingInterval(Number(value) || 30)}
-                min={5}
+                onChange={(value) => {
+                  // Allow empty/undefined values while typing, only apply default on save
+                  setLocalPollingInterval(value === undefined || value === null ? '' : value);
+                }}
+                min={1}
                 max={1440}
+                placeholder="Enter interval in minutes"
               />
 
               <Group>

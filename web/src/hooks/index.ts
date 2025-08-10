@@ -40,7 +40,6 @@ export {
   updatesKeys
 } from './useUpdates';
 export { useBlockNumber, useRpcHealth } from './useBlockNumber';
-export { useUpdatePoller } from './useUpdatePoller';
 export { useProfile, profileKeys } from './useProfile';
 export { 
   useApiKeys, 

@@ -37,8 +37,9 @@ export class UpdatePollerService {
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
   private lastRunData: Map<number, Date> = new Map();
+  private lastPollingCycleStart?: Date;
 
-  constructor(githubApiKey?: string, pollingIntervalMinutes = 30) {
+  constructor(githubApiKey?: string, pollingIntervalMinutes = 5) {
     this.githubService = new GitHubApiService(githubApiKey);
     this.pollingInterval = pollingIntervalMinutes * 60 * 1000; // Convert to milliseconds
   }
@@ -52,7 +53,7 @@ export class UpdatePollerService {
       return;
     }
 
-    console.log(`Starting update poller with ${this.pollingInterval / 60000} minute interval`);
+    console.log(`🚀 Starting update poller with ${this.pollingInterval / 60000} minute interval (${this.pollingInterval}ms)`);
     this.isRunning = true;
     
     // Run immediately, then on interval
@@ -60,6 +61,8 @@ export class UpdatePollerService {
     this.intervalId = setInterval(() => {
       this.runPollingCycle();
     }, this.pollingInterval);
+    
+    console.log(`⏰ Next polling cycle will run in ${this.pollingInterval / 60000} minutes`);
   }
 
   /**
@@ -78,10 +81,18 @@ export class UpdatePollerService {
    * Get current polling status
    */
   getStatus(): PollingStatus {
+    let nextRun: Date | undefined = undefined;
+    
+    if (this.isRunning && this.lastPollingCycleStart) {
+      // Calculate when next run should happen based on last cycle start time
+      const nextRunTime = this.lastPollingCycleStart.getTime() + this.pollingInterval;
+      nextRun = new Date(nextRunTime);
+    }
+    
     return {
       isRunning: this.isRunning,
-      lastRun: this.lastRunData.size > 0 ? new Date(Math.max(...Array.from(this.lastRunData.values()).map(d => d.getTime()))) : undefined,
-      nextRun: this.intervalId ? new Date(Date.now() + this.pollingInterval) : undefined,
+      lastRun: this.lastPollingCycleStart,
+      nextRun,
       totalClients: this.lastRunData.size,
       processedClients: this.lastRunData.size,
       errors: [],
@@ -284,20 +295,27 @@ export class UpdatePollerService {
    * Run a complete polling cycle for all clients
    */
   private async runPollingCycle(): Promise<void> {
-    console.log('Starting polling cycle...');
+    console.log('🔄 Starting polling cycle...');
+    this.lastPollingCycleStart = new Date();
     
     try {
-      // In a real implementation, you would fetch clients from your API
-      // For now, this is a placeholder that would integrate with your client service
+      // Get clients to poll (this method is overridden by the React hook)
       const clients = await this.getClientsToPolll();
+      console.log(`📊 Found ${clients.length} clients to poll`);
+      
+      if (clients.length === 0) {
+        console.log('⚠️ No clients configured for polling - skipping cycle');
+        return;
+      }
       
       for (const client of clients) {
         try {
+          console.log(`🔍 Polling client: ${client.name}`);
           const result = await this.pollClient(client);
           
           if (result.updates.length > 0) {
             console.log(`Found ${result.updates.length} updates for client ${client.name}`);
-            // Here you would save the updates to your database
+            // Save updates (this method is also overridden by the React hook)
             await this.saveUpdates(result.updates);
           }
           
@@ -316,7 +334,7 @@ export class UpdatePollerService {
       console.error('Error in polling cycle:', error);
     }
     
-    console.log('Polling cycle completed');
+    console.log('✅ Polling cycle completed');
   }
 
   /**
@@ -361,10 +379,14 @@ export class UpdatePollerService {
    * Update polling interval
    */
   setPollingInterval(minutes: number): void {
+    const oldInterval = this.pollingInterval / 60000;
     this.pollingInterval = minutes * 60 * 1000;
     
-    // Restart if currently running
+    console.log(`🔧 Polling interval updated: ${oldInterval} → ${minutes} minutes`);
+    
+    // Restart if currently running to apply new interval
     if (this.isRunning) {
+      console.log('🔄 Restarting poller with new interval...');
       this.stop();
       this.start();
     }

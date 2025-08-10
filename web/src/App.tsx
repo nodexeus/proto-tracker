@@ -1,6 +1,7 @@
 
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { UpdatePollerProvider } from './contexts/UpdatePollerContext';
 import { ProtectedRoute } from './components/auth';
 import { AppLayout } from './components/layout';
 import { ErrorBoundary } from './components/ui';
@@ -135,7 +136,9 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
+        <UpdatePollerProvider>
+          <AppContent />
+        </UpdatePollerProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

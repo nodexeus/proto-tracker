@@ -12,7 +12,7 @@ pnpm-debug.log*
 
 # Environment files
 .env
-.env.*
+!.env.production
 
 # Vite/TypeScript cache and metadata
 .cache

@@ -42,16 +42,25 @@ export interface AdminUsersResponse {
 export interface GitHubConfig {
   id: number;
   api_key: string;
+  polling_interval_minutes: number;
+  poller_enabled: boolean;
+  last_poll_time?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface GitHubConfigCreate {
   api_key: string;
+  polling_interval_minutes?: number;
+  poller_enabled?: boolean;
+  last_poll_time?: string;
 }
 
 export interface GitHubConfigUpdate {
   api_key?: string;
+  polling_interval_minutes?: number;
+  poller_enabled?: boolean;
+  last_poll_time?: string;
 }
 
 export class AdminService extends ApiService {
