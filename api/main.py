@@ -1401,6 +1401,15 @@ def get_protocol_updates_enriched(
         updates = crud.get_protocol_updates_enriched(db, skip, limit)
         return updates
 
+# Admin System endpoints
+# @app.get(
+#     "/admin/system-status",
+#     tags=["Admin"],
+#     summary="Get system status"
+# )
+# def get_admin_system_status():
+#     return Response(status_code=200)
+
 # Admin user management endpoints
 @app.get(
     "/admin/users",
@@ -1578,6 +1587,74 @@ async def update_github_config_endpoint(
         logger.info(f"Admin {admin_user.email} updating GitHub config")
         db_config = crud.update_github_config(db=db, config=config)
         return db_config
+
+# Background Poller endpoints
+@app.post(
+    "/admin/poller/start",
+    tags=["Admin"],
+    summary="Start the background GitHub poller"
+)
+async def start_background_poller(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Start the background GitHub polling service (admin only)"""
+    from services.background_poller import background_poller
+    
+    with timer("start_background_poller"):
+        logger.info(f"Admin {admin_user.email} starting background poller")
+        result = await background_poller.start(db)
+        return result
+
+@app.post(
+    "/admin/poller/stop", 
+    tags=["Admin"],
+    summary="Stop the background GitHub poller"
+)
+async def stop_background_poller(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Stop the background GitHub polling service (admin only)"""
+    from services.background_poller import background_poller
+    
+    with timer("stop_background_poller"):
+        logger.info(f"Admin {admin_user.email} stopping background poller")
+        result = await background_poller.stop(db)
+        return result
+
+@app.get(
+    "/admin/poller/status",
+    tags=["Admin"], 
+    summary="Get background poller status"
+)
+async def get_background_poller_status(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get the status of the background GitHub polling service (admin only)"""
+    from services.background_poller import background_poller
+    
+    with timer("get_background_poller_status"):
+        result = await background_poller.get_status(db)
+        return result
+
+@app.post(
+    "/admin/poller/poll-now",
+    tags=["Admin"],
+    summary="Run a manual poll immediately"
+)
+async def manual_poll_now(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Run a manual GitHub poll immediately (admin only)"""
+    from services.background_poller import background_poller
+    
+    with timer("manual_poll_now"):
+        logger.info(f"Admin {admin_user.email} running manual poll")
+        result = await background_poller.poll_now(db)
+        return result
 
 # Profile management endpoints
 @app.get(

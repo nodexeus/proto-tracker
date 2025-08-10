@@ -171,5 +171,8 @@ class GitHubConfig(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     api_key = Column(String, nullable=False)
+    polling_interval_minutes = Column(Integer, nullable=False, default=5)
+    poller_enabled = Column(Boolean, nullable=False, default=False)
+    last_poll_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

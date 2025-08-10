@@ -31,6 +31,13 @@ def get_protocol_update(db: Session, update_id: id):
 
 
 
+def get_protocol_update_by_tag(db: Session, client_id: int, tag: str):
+    """Check if a protocol update already exists for a given client and tag"""
+    return db.query(models.ProtocolUpdates).filter(
+        models.ProtocolUpdates.client == str(client_id),
+        models.ProtocolUpdates.tag == tag
+    ).first()
+
 def create_protocol_updates(
     db: Session, protocol_update: schemas.ProtocolUpdatesCreate
 ):

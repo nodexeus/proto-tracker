@@ -52,6 +52,16 @@ class ProtocolBase(BaseModel):
     class Config:
         from_attributes = True
 
+class ClientBase(BaseModel):
+    id: Union[int, None] = None
+    name: Optional[str] = None
+    client: Optional[str] = None 
+    github_url: Optional[str] = None 
+    repo_type: Optional[str] = None 
+
+    class Config:
+        from_attributes = True
+
 
 class ProtocolCreate(ProtocolBase):
     logo: Optional[str] = None  # Base64 encoded PNG image
@@ -65,20 +75,11 @@ class ProtocolUpdate(ProtocolBase):
 class Protocol(ProtocolBase):
     id: int
     logo: Optional[str] = None  # Base64 encoded PNG image
+    clients: Optional[list['ClientBase']] = None  # Associated clients
 
 
 class ProtocolDelete(BaseModel):
     id: Union[int, None] = None
-
-class ClientBase(BaseModel):
-    id: Union[int, None] = None
-    name: Optional[str] = None
-    client: Optional[str] = None 
-    github_url: Optional[str] = None 
-    repo_type: Optional[str] = None 
-
-    class Config:
-        from_attributes = True
 
 
 class ClientCreate(ClientBase):
@@ -87,6 +88,7 @@ class ClientCreate(ClientBase):
 
 class Client(ClientBase):
     id: Union[int, None] = None
+    protocols: Optional[list['ProtocolBase']] = None  # Associated protocols
 
 
 class ClientDelete(BaseModel):
@@ -276,12 +278,18 @@ class SnapshotIndexSummary(BaseModel):
 # GitHub API Configuration schemas
 class GitHubConfigBase(BaseModel):
     api_key: str
+    polling_interval_minutes: int = 5
+    poller_enabled: bool = False
+    last_poll_time: Optional[datetime] = None
 
 class GitHubConfigCreate(GitHubConfigBase):
     pass
 
 class GitHubConfigUpdate(GitHubConfigBase):
     api_key: Optional[str] = None
+    polling_interval_minutes: Optional[int] = None
+    poller_enabled: Optional[bool] = None
+    last_poll_time: Optional[datetime] = None
 
 class GitHubConfig(GitHubConfigBase):
     id: int
