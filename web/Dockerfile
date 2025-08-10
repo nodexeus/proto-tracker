@@ -22,4 +22,4 @@ EXPOSE 5001
 
 # Build at container startup to capture VITE_ env vars provided at runtime
 # Then serve built assets via Vite preview
-CMD ["sh", "-c", "npm run build && npm run preview -- --port ${PORT:-5001} --host 0.0.0.0"]
+CMD ["npm", "run", "preview", "--", "--port", "5001", "--host", "0.0.0.0"]
