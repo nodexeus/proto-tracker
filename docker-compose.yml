@@ -1,0 +1,56 @@
+services:
+  proto-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DB_ENGINE=postgresql
+      - DB_USERNAME=postgres
+      - DB_PASS=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=protodb
+      - AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED
+      - AWS_RESPONSE_CHECKSUM_VALIDATION=WHEN_REQUIRED
+      # Google OAuth Configuration (set these values)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  proto-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - API_URL=http://proto-api:8001
+      - API_KEY=1234567890
+      # Google OAuth Configuration (set these values)
+      - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - VITE_API_URL=http://proto-api:8001
+    depends_on:
+      - proto-api
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=protodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
