@@ -1,0 +1,32 @@
+# Node and package managers
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+/dist
+/dist-ssr
+/build
+
+# Environment files
+.env
+.env.*
+
+# Vite/TypeScript cache and metadata
+.cache
+*.tsbuildinfo
+
+# Editor and OS files
+.vscode
+.idea
+.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Tests and coverage
+coverage
+.nyc_output
