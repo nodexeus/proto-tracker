@@ -31,12 +31,128 @@ def get_protocol_update(db: Session, update_id: id):
 
 
 
-def get_protocol_update_by_tag(db: Session, client_id: int, tag: str):
+def get_protocol_update_by_tag(db: Session, client_string: str, tag: str):
     """Check if a protocol update already exists for a given client and tag"""
     return db.query(models.ProtocolUpdates).filter(
-        models.ProtocolUpdates.client == str(client_id),
+        models.ProtocolUpdates.client == client_string,
         models.ProtocolUpdates.tag == tag
     ).first()
+
+# System Configuration CRUD operations
+def get_system_config(db: Session):
+    """Get system configuration (should only be one record)"""
+    return db.query(models.SystemConfig).first()
+
+def create_system_config(db: Session, config: schemas.SystemConfigCreate):
+    """Create system configuration"""
+    db_config = models.SystemConfig(**config.model_dump())
+    db.add(db_config)
+    db.commit()
+    db.refresh(db_config)
+    return db_config
+
+def update_system_config(db: Session, config_id: int, config: schemas.SystemConfigUpdate):
+    """Update system configuration"""
+    db_config = db.query(models.SystemConfig).filter(models.SystemConfig.id == config_id).first()
+    if db_config:
+        update_data = config.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_config, field, value)
+        db.commit()
+        db.refresh(db_config)
+    return db_config
+
+def get_or_create_system_config(db: Session):
+    """Get system config or create default one if none exists"""
+    config = get_system_config(db)
+    if not config:
+        config = create_system_config(db, schemas.SystemConfigCreate())
+    return config
+
+# Notification Configuration CRUD operations
+def get_notification_config(db: Session):
+    """Get notification configuration (should only be one record)"""
+    return db.query(models.NotificationConfig).first()
+
+def create_notification_config(db: Session, config: schemas.NotificationConfigCreate):
+    """Create notification configuration"""
+    db_config = models.NotificationConfig(**config.model_dump())
+    db.add(db_config)
+    db.commit()
+    db.refresh(db_config)
+    return db_config
+
+def update_notification_config(db: Session, config_id: int, config: schemas.NotificationConfigUpdate):
+    """Update notification configuration"""
+    db_config = db.query(models.NotificationConfig).filter(models.NotificationConfig.id == config_id).first()
+    if db_config:
+        update_data = config.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_config, field, value)
+        db.commit()
+        db.refresh(db_config)
+    return db_config
+
+def get_or_create_notification_config(db: Session):
+    """Get notification config or create default one if none exists"""
+    config = get_notification_config(db)
+    if not config:
+        config = create_notification_config(db, schemas.NotificationConfigCreate())
+    return config
+
+# Client Notification Settings CRUD operations
+def get_client_notification_settings(db: Session, client_id: int):
+    """Get notification settings for a specific client"""
+    return db.query(models.ClientNotificationSettings).filter(
+        models.ClientNotificationSettings.client_id == client_id
+    ).first()
+
+def create_client_notification_settings(db: Session, settings: schemas.ClientNotificationSettingsCreate):
+    """Create notification settings for a client"""
+    db_settings = models.ClientNotificationSettings(**settings.model_dump())
+    db.add(db_settings)
+    db.commit()
+    db.refresh(db_settings)
+    return db_settings
+
+def update_client_notification_settings(db: Session, client_id: int, settings: schemas.ClientNotificationSettingsUpdate):
+    """Update notification settings for a client"""
+    db_settings = db.query(models.ClientNotificationSettings).filter(
+        models.ClientNotificationSettings.client_id == client_id
+    ).first()
+    
+    if not db_settings:
+        # Create new settings if they don't exist
+        create_data = schemas.ClientNotificationSettingsCreate(
+            client_id=client_id,
+            notifications_enabled=settings.notifications_enabled if settings.notifications_enabled is not None else True
+        )
+        return create_client_notification_settings(db, create_data)
+    
+    # Update existing settings
+    update_data = settings.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_settings, field, value)
+    db.commit()
+    db.refresh(db_settings)
+    return db_settings
+
+def get_or_create_client_notification_settings(db: Session, client_id: int):
+    """Get client notification settings or create default ones if they don't exist"""
+    settings = get_client_notification_settings(db, client_id)
+    if not settings:
+        create_data = schemas.ClientNotificationSettingsCreate(
+            client_id=client_id,
+            notifications_enabled=True
+        )
+        settings = create_client_notification_settings(db, create_data)
+    return settings
+
+def get_all_clients_with_notification_settings(db: Session):
+    """Get all clients with their notification settings"""
+    return db.query(models.Client).outerjoin(
+        models.ClientNotificationSettings
+    ).all()
 
 def create_protocol_updates(
     db: Session, protocol_update: schemas.ProtocolUpdatesCreate

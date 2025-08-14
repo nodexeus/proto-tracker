@@ -74,6 +74,7 @@ class Client(Base):
     # Relationships
     protocols = relationship('Protocol', secondary=protocol_clients, back_populates='clients', lazy='select')
     updates = relationship('ProtocolUpdates', back_populates='client_entity', lazy='select')
+    notification_settings = relationship('ClientNotificationSettings', back_populates='client', uselist=False, cascade='all, delete-orphan')
 
 
 class Users(Base):
@@ -176,3 +177,61 @@ class GitHubConfig(Base):
     last_poll_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    app_name = Column(String, nullable=False, default="Protocol Tracker")
+    app_description = Column(String, nullable=True)
+    max_file_size_mb = Column(Integer, nullable=False, default=100)
+    session_timeout_hours = Column(Integer, nullable=False, default=24)
+    auto_scan_enabled = Column(Boolean, nullable=False, default=True)
+    auto_scan_interval_hours = Column(Integer, nullable=False, default=6)
+    notification_email = Column(String, nullable=True)
+    admin_email = Column(String, nullable=True)
+    backup_enabled = Column(Boolean, nullable=False, default=False)
+    backup_retention_days = Column(Integer, nullable=False, default=30)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NotificationConfig(Base):
+    __tablename__ = "notification_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    notifications_enabled = Column(Boolean, nullable=False, default=False)
+    
+    # Discord webhook
+    discord_enabled = Column(Boolean, nullable=False, default=False)
+    discord_webhook_url = Column(String, nullable=True)
+    
+    # Slack webhook
+    slack_enabled = Column(Boolean, nullable=False, default=False)
+    slack_webhook_url = Column(String, nullable=True)
+    
+    # Generic JSON webhook
+    generic_enabled = Column(Boolean, nullable=False, default=False)
+    generic_webhook_url = Column(String, nullable=True)
+    generic_headers = Column(JSON, nullable=True)  # Custom headers as JSON
+    
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ClientNotificationSettings(Base):
+    __tablename__ = "client_notification_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey('clients.id', ondelete='CASCADE'), nullable=False)
+    notifications_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship
+    client = relationship('Client', back_populates='notification_settings')
+    
+    __table_args__ = (
+        UniqueConstraint('client_id', name='uix_client_notification'),
+    )

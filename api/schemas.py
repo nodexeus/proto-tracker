@@ -3,6 +3,7 @@ from typing import Union, Optional, Dict, Any
 
 from pydantic import BaseModel
 from datetime import datetime
+import psutil
 
 
 class ProtocolUpdatesBase(BaseModel):
@@ -298,3 +299,126 @@ class GitHubConfig(GitHubConfigBase):
 
     class Config:
         from_attributes = True
+
+# OAuth and Authentication schemas
+class GoogleOAuthRequest(BaseModel):
+    id_token: str
+    access_token: str
+
+class LoginResponse(BaseModel):
+    user: UserProfile
+    api_key: str
+    expires_in: Optional[int] = None
+
+class InitialSetupRequest(BaseModel):
+    """Request to initialize the system without requiring API key authentication"""
+    action: str  # e.g., "create_admin", "get_status"
+    admin_data: Optional[Dict[str, Any]] = None
+
+# System Configuration schemas
+class SystemConfigBase(BaseModel):
+    app_name: str = "Protocol Tracker"
+    app_description: Optional[str] = "Track blockchain protocols and updates"
+    max_file_size_mb: int = 100
+    session_timeout_hours: int = 24
+    auto_scan_enabled: bool = True
+    auto_scan_interval_hours: int = 6
+    notification_email: Optional[str] = None
+    admin_email: Optional[str] = None
+    backup_enabled: bool = False
+    backup_retention_days: int = 30
+
+class SystemConfigCreate(SystemConfigBase):
+    pass
+
+class SystemConfigUpdate(BaseModel):
+    app_name: Optional[str] = None
+    app_description: Optional[str] = None
+    max_file_size_mb: Optional[int] = None
+    session_timeout_hours: Optional[int] = None
+    auto_scan_enabled: Optional[bool] = None
+    auto_scan_interval_hours: Optional[int] = None
+    notification_email: Optional[str] = None
+    admin_email: Optional[str] = None
+    backup_enabled: Optional[bool] = None
+    backup_retention_days: Optional[int] = None
+
+class SystemConfig(SystemConfigBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# System Status schemas
+class SystemStatus(BaseModel):
+    status: str  # 'healthy', 'warning', 'error'
+    uptime: float  # in seconds
+    version: str
+    database_status: str
+    memory_usage: float  # percentage
+    disk_usage: float  # percentage
+    cpu_usage: float  # percentage
+    active_connections: int
+    last_backup: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Notification Configuration schemas
+class NotificationConfigBase(BaseModel):
+    notifications_enabled: bool = False
+    discord_enabled: bool = False
+    discord_webhook_url: Optional[str] = None
+    slack_enabled: bool = False
+    slack_webhook_url: Optional[str] = None
+    generic_enabled: bool = False
+    generic_webhook_url: Optional[str] = None
+    generic_headers: Optional[Dict[str, str]] = None
+
+class NotificationConfigCreate(NotificationConfigBase):
+    pass
+
+class NotificationConfigUpdate(BaseModel):
+    notifications_enabled: Optional[bool] = None
+    discord_enabled: Optional[bool] = None
+    discord_webhook_url: Optional[str] = None
+    slack_enabled: Optional[bool] = None
+    slack_webhook_url: Optional[str] = None
+    generic_enabled: Optional[bool] = None
+    generic_webhook_url: Optional[str] = None
+    generic_headers: Optional[Dict[str, str]] = None
+
+class NotificationConfig(NotificationConfigBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Client Notification Settings schemas
+class ClientNotificationSettingsBase(BaseModel):
+    notifications_enabled: bool = True
+
+class ClientNotificationSettingsCreate(ClientNotificationSettingsBase):
+    client_id: int
+
+class ClientNotificationSettingsUpdate(BaseModel):
+    notifications_enabled: Optional[bool] = None
+
+class ClientNotificationSettings(ClientNotificationSettingsBase):
+    id: int
+    client_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Webhook test schemas
+class WebhookTest(BaseModel):
+    webhook_type: str  # 'discord', 'slack', 'generic'
+    webhook_url: str
+    headers: Optional[Dict[str, str]] = None

@@ -1,6 +1,6 @@
-from typing import Union, Annotated
+from typing import Union, Annotated, List, Dict, Any
 
-from fastapi import Depends, FastAPI, HTTPException, status, Security, File, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, status, Security, File, UploadFile, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader, APIKeyQuery
@@ -12,6 +12,11 @@ import time
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import contextmanager
 from datetime import datetime
+import secrets
+import string
+import os
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 import crud, models, schemas
 from database import SessionLocal, engine
@@ -46,10 +51,57 @@ app = FastAPI(
 
 app.openapi_version = "3.0.2"
 
+# Startup event to auto-start background poller if it was previously enabled
+@app.on_event("startup")
+async def startup_event():
+    """Start background services if they were previously enabled"""
+    db = next(get_db())
+    try:
+        # Auto-start background poller if enabled
+        try:
+            from services.background_poller import background_poller
+            
+            github_config = crud.get_github_config(db)
+            if github_config and github_config.poller_enabled and github_config.api_key:
+                logger.info("Auto-starting background poller (was previously enabled)")
+                await background_poller.start(db)
+            else:
+                logger.info("Background poller not auto-started (not previously enabled or no API key)")
+        except Exception as e:
+            logger.error(f"Error during startup auto-start of background poller: {e}")
+        
+        # Auto-start background scanner if enabled
+        try:
+            from services.background_scanner import background_scanner
+            
+            system_config = crud.get_system_config(db)
+            if system_config and system_config.auto_scan_enabled:
+                s3_config = crud.get_s3_config(db)
+                if s3_config and s3_config.bucket_name:
+                    logger.info("Auto-starting background scanner (auto-scan enabled)")
+                    await background_scanner.start(db)
+                else:
+                    logger.info("Background scanner not auto-started (S3 not configured)")
+            else:
+                logger.info("Background scanner not auto-started (auto-scan not enabled)")
+        except Exception as e:
+            logger.error(f"Error during startup auto-start of background scanner: {e}")
+            
+    finally:
+        db.close()
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://localhost:3001", 
+        "http://127.0.0.1:3000", 
+        "http://127.0.0.1:3001",
+        "http://proto-web:3000",  # Internal Docker network
+        "http://0.0.0.0:3000",    # Docker internal IP
+        "*"  # Allow all origins for now to debug
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
@@ -178,6 +230,139 @@ def get_current_admin_user(
         )
     
     return user
+
+def generate_api_key() -> str:
+    """Generate a secure random API key"""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(64))
+
+def verify_google_token(access_token: str) -> dict:
+    """Verify Google access token by fetching user info and return user information"""
+    try:
+        # Get Google OAuth client ID from environment (for reference, not needed for access token)
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        if not client_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured on server"
+            )
+        
+        # Use the access token to fetch user info from Google's userinfo endpoint
+        import requests as python_requests
+        
+        response = python_requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        
+        if response.status_code != 200:
+            raise ValueError('Invalid access token or failed to fetch user info')
+            
+        user_info = response.json()
+        
+        # Validate that we got the required fields
+        if not user_info.get('id') or not user_info.get('email'):
+            raise ValueError('Incomplete user information from Google')
+        
+        # Convert to the format expected by our code (similar to ID token format)
+        return {
+            'sub': user_info['id'],
+            'email': user_info['email'],
+            'given_name': user_info.get('given_name'),
+            'family_name': user_info.get('family_name'),
+            'picture': user_info.get('picture'),
+            'verified_email': user_info.get('verified_email', True),
+        }
+        
+    except ValueError as e:
+        logger.error(f"Google token verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google token"
+        )
+
+def create_or_get_user_from_google(db: Session, google_user_info: dict) -> models.Users:
+    """Create or get user from Google OAuth information"""
+    google_id = google_user_info.get('sub')
+    email = google_user_info.get('email')
+    
+    if not google_id or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google user information"
+        )
+    
+    # Check if user exists by Google ID
+    user = db.query(models.Users).filter(models.Users.oauth_google == google_id).first()
+    
+    if not user:
+        # Check if user exists by email
+        user = db.query(models.Users).filter(models.Users.email == email).first()
+        
+        if user:
+            # Update existing user with Google OAuth info
+            user.oauth_google = google_id
+            user.picture = google_user_info.get('picture')
+            if not user.first_name:
+                user.first_name = google_user_info.get('given_name')
+            if not user.last_name:
+                user.last_name = google_user_info.get('family_name')
+        else:
+            # Create new user
+            user = models.Users(
+                username=email,
+                email=email,
+                oauth_google=google_id,
+                first_name=google_user_info.get('given_name'),
+                last_name=google_user_info.get('family_name'),
+                picture=google_user_info.get('picture'),
+                is_admin=False,
+                is_active=True
+            )
+            
+            # If this is the first user, make them admin
+            user_count = db.query(models.Users).count()
+            if user_count == 0:
+                user.is_admin = True
+                logger.info("First user created - granted admin privileges")
+            
+            db.add(user)
+        
+        # Update last login
+        user.last_login = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+    
+    return user
+
+def create_api_key_for_user(db: Session, user: models.Users) -> str:
+    """Create an API key for a user, or return existing one"""
+    # Check if user already has an active API key
+    existing_key = db.query(models.ApiKey).filter(
+        models.ApiKey.user_id == user.id,
+        models.ApiKey.is_active == True
+    ).first()
+    
+    if existing_key:
+        return existing_key.key
+    
+    # Create new API key
+    api_key = generate_api_key()
+    
+    db_api_key = models.ApiKey(
+        user_id=user.id,
+        key=api_key,
+        name="Default API Key",
+        description="Auto-created during OAuth login",
+        is_active=True
+    )
+    
+    db.add(db_api_key)
+    db.commit()
+    db.refresh(db_api_key)
+    
+    logger.info(f"Created API key for user {user.email}")
+    return api_key
 
 
 def process_logo_image(logo_data: bytes) -> bytes:
@@ -911,7 +1096,22 @@ async def create_protocol(
         db.add(db_protocol)
         db.commit()
         db.refresh(db_protocol)
-        return db_protocol
+        
+        # Create response object manually to handle logo conversion
+        response_protocol = schemas.Protocol(
+            id=db_protocol.id,
+            name=db_protocol.name,
+            chain_id=db_protocol.chain_id,
+            explorer=db_protocol.explorer,
+            public_rpc=db_protocol.public_rpc,
+            proto_family=db_protocol.proto_family,
+            bpm=db_protocol.bpm,
+            network=db_protocol.network,
+            snapshot_prefix=db_protocol.snapshot_prefix,
+            logo=base64.b64encode(db_protocol.logo).decode("utf-8") if db_protocol.logo else None
+        )
+        
+        return response_protocol
 
 
 @app.get(
@@ -1199,7 +1399,39 @@ def read_clients(
     with timer("read_clients"):
         logger.info("Fetching all clients")
         clients = crud.get_clients(db, skip=skip, limit=limit)
-        return clients
+        
+        # Convert binary logo data to base64 for response
+        result = []
+        for client in clients:
+            client_dict = {
+                "id": client.id,
+                "name": client.name,
+                "client": client.client,
+                "github_url": client.github_url,
+                "repo_type": client.repo_type,
+                "protocols": []
+            }
+            
+            # Convert protocol logos to base64 if they exist
+            if hasattr(client, 'protocols') and client.protocols:
+                for protocol in client.protocols:
+                    protocol_dict = {
+                        "id": protocol.id,
+                        "name": protocol.name,
+                        "chain_id": protocol.chain_id,
+                        "explorer": protocol.explorer,
+                        "public_rpc": protocol.public_rpc,
+                        "proto_family": protocol.proto_family,
+                        "bpm": protocol.bpm,
+                        "network": protocol.network,
+                        "snapshot_prefix": protocol.snapshot_prefix,
+                        "logo": base64.b64encode(protocol.logo).decode("utf-8") if protocol.logo else None
+                    }
+                    client_dict["protocols"].append(protocol_dict)
+            
+            result.append(client_dict)
+        
+        return result
 
 
 @app.get(
@@ -1656,6 +1888,299 @@ async def manual_poll_now(
         result = await background_poller.poll_now(db)
         return result
 
+# System configuration and status endpoints
+@app.get(
+    "/admin/system-config",
+    response_model=Union[schemas.SystemConfig, None],
+    tags=["Admin"],
+    summary="Get system configuration"
+)
+def get_system_config_endpoint(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get system configuration"""
+    with timer("get_system_config"):
+        return crud.get_or_create_system_config(db)
+
+@app.patch(
+    "/admin/system-config",
+    response_model=schemas.SystemConfig,
+    tags=["Admin"], 
+    summary="Update system configuration"
+)
+def update_system_config_endpoint(
+    config_update: schemas.SystemConfigUpdate,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update system configuration"""
+    with timer("update_system_config"):
+        # Get existing config or create default
+        existing_config = crud.get_or_create_system_config(db)
+        
+        # Update with new values
+        updated_config = crud.update_system_config(db, existing_config.id, config_update)
+        if not updated_config:
+            raise HTTPException(status_code=404, detail="System configuration not found")
+            
+        return updated_config
+
+@app.get(
+    "/admin/system-status",
+    response_model=schemas.SystemStatus,
+    tags=["Admin"],
+    summary="Get system status"
+)
+def get_system_status_endpoint(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get system status"""
+    with timer("get_system_status"):
+        import psutil
+        import time
+        from datetime import datetime
+        from sqlalchemy import text
+        
+        # Get container/process metrics (more appropriate for Docker)
+        try:
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            cpu = psutil.cpu_percent(interval=0.1)  # Shorter interval for faster response
+        except Exception as e:
+            logger.error(f"Failed to get system metrics: {e}")
+            memory = None
+            disk = None
+            cpu = 0
+        
+        # Calculate application uptime (since container started, not system boot)
+        try:
+            # Get current process (the FastAPI app)
+            current_process = psutil.Process()
+            app_start_time = current_process.create_time()
+            uptime = time.time() - app_start_time
+        except Exception:
+            # Fallback to a reasonable default
+            uptime = 0
+        
+        # Test database connection with proper SQL
+        try:
+            result = db.execute(text("SELECT 1")).fetchone()
+            db_status = "healthy" if result else "error"
+        except Exception as e:
+            logger.error(f"Database health check failed: {e}")
+            db_status = "error"
+        
+        # Get more realistic metrics
+        memory_percent = memory.percent if memory else 0
+        disk_percent = disk.percent if disk else 0
+        
+        # Determine overall status with more reasonable thresholds
+        if db_status == "error":
+            status = "error"
+        elif memory_percent > 90 or disk_percent > 95 or cpu > 90:
+            status = "error"
+        elif memory_percent > 75 or disk_percent > 85 or cpu > 75:
+            status = "warning"  
+        else:
+            status = "healthy"
+        
+        return schemas.SystemStatus(
+            status=status,
+            uptime=uptime,
+            version="1.0.0",  # Could be made dynamic
+            database_status=db_status,
+            memory_usage=memory_percent,
+            disk_usage=disk_percent,
+            cpu_usage=cpu,
+            active_connections=1,  # Could be improved with actual connection count
+            last_backup=None  # Could be implemented when backup feature is added
+        )
+
+# Background scanner endpoints
+@app.post(
+    "/admin/scanner/start",
+    tags=["Admin"],
+    summary="Start background snapshot scanner"
+)
+async def start_background_scanner(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Start background snapshot scanner (admin only)"""
+    from services.background_scanner import background_scanner
+    
+    with timer("start_background_scanner"):
+        logger.info(f"Admin {admin_user.email} starting background scanner")
+        result = await background_scanner.start(db)
+        return result
+
+@app.post(
+    "/admin/scanner/stop", 
+    tags=["Admin"],
+    summary="Stop background snapshot scanner"
+)
+async def stop_background_scanner(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Stop background snapshot scanner (admin only)"""
+    from services.background_scanner import background_scanner
+    
+    with timer("stop_background_scanner"):
+        logger.info(f"Admin {admin_user.email} stopping background scanner")
+        result = await background_scanner.stop(db)
+        return result
+
+@app.get(
+    "/admin/scanner/status",
+    tags=["Admin"],
+    summary="Get background scanner status"
+)
+async def get_background_scanner_status(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get background snapshot scanner status (admin only)"""
+    from services.background_scanner import background_scanner
+    
+    with timer("get_background_scanner_status"):
+        result = await background_scanner.get_status(db)
+        return result
+
+@app.post(
+    "/admin/scanner/scan-now",
+    tags=["Admin"],
+    summary="Run manual snapshot scan"
+)
+async def manual_scan_now(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Run a manual snapshot scan immediately (admin only)"""
+    from services.background_scanner import background_scanner
+    
+    with timer("manual_scan_now"):
+        logger.info(f"Admin {admin_user.email} running manual scan")
+        result = await background_scanner.scan_now(db)
+        return result
+
+# Notification configuration endpoints
+@app.get(
+    "/admin/notification-config",
+    response_model=Union[schemas.NotificationConfig, None],
+    tags=["Admin"],
+    summary="Get notification configuration"
+)
+def get_notification_config_endpoint(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get notification configuration"""
+    with timer("get_notification_config"):
+        return crud.get_or_create_notification_config(db)
+
+@app.patch(
+    "/admin/notification-config",
+    response_model=schemas.NotificationConfig,
+    tags=["Admin"],
+    summary="Update notification configuration"
+)
+def update_notification_config_endpoint(
+    config_update: schemas.NotificationConfigUpdate,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update notification configuration"""
+    with timer("update_notification_config"):
+        # Get existing config or create default
+        existing_config = crud.get_or_create_notification_config(db)
+        
+        # Update with new values
+        updated_config = crud.update_notification_config(db, existing_config.id, config_update)
+        if not updated_config:
+            raise HTTPException(status_code=404, detail="Notification configuration not found")
+            
+        return updated_config
+
+@app.post(
+    "/admin/test-webhook",
+    tags=["Admin"],
+    summary="Test a webhook configuration"
+)
+async def test_webhook_endpoint(
+    webhook_test: schemas.WebhookTest,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Test a webhook configuration"""
+    with timer("test_webhook"):
+        from services.notification_service import NotificationService
+        
+        notification_service = NotificationService()
+        success = await notification_service.test_webhook(
+            webhook_test.webhook_type,
+            webhook_test.webhook_url,
+            webhook_test.headers
+        )
+        
+        return {
+            "success": success,
+            "message": "Webhook test successful" if success else "Webhook test failed"
+        }
+
+# Client notification settings endpoints
+@app.get(
+    "/admin/clients/notification-settings",
+    response_model=List[Dict[str, Any]],
+    tags=["Admin"],
+    summary="Get all clients with their notification settings"
+)
+def get_all_client_notification_settings(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all clients with their notification settings"""
+    with timer("get_all_client_notification_settings"):
+        clients = crud.get_all_clients_with_notification_settings(db)
+        result = []
+        
+        for client in clients:
+            settings = crud.get_or_create_client_notification_settings(db, client.id)
+            result.append({
+                "client_id": client.id,
+                "client_name": client.name,
+                "client_string": client.client,
+                "github_url": client.github_url,
+                "notifications_enabled": settings.notifications_enabled
+            })
+        
+        return result
+
+@app.patch(
+    "/admin/clients/{client_id}/notification-settings",
+    response_model=schemas.ClientNotificationSettings,
+    tags=["Admin"],
+    summary="Update client notification settings"
+)
+def update_client_notification_settings_endpoint(
+    client_id: int,
+    settings_update: schemas.ClientNotificationSettingsUpdate,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update notification settings for a specific client"""
+    with timer("update_client_notification_settings"):
+        # Verify client exists
+        client = crud.get_client(db, client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        # Update or create notification settings
+        updated_settings = crud.update_client_notification_settings(db, client_id, settings_update)
+        return updated_settings
+
 # Profile management endpoints
 @app.get(
     "/profile",
@@ -1761,3 +2286,201 @@ def get_full_api_key(
         if not result:
             raise HTTPException(status_code=404, detail="API key not found or inactive")
         return result
+
+# Authentication Endpoints
+@app.post(
+    "/auth/google",
+    response_model=schemas.LoginResponse,
+    tags=["Authentication"],
+    summary="Login with Google OAuth"
+)
+def login_with_google(
+    oauth_request: schemas.GoogleOAuthRequest,
+    db: Session = Depends(get_db)
+):
+    """Login with Google OAuth"""
+    with timer("google_oauth_login"):
+        logger.info("Processing Google OAuth login")
+        
+        # Verify Google access token
+        google_user_info = verify_google_token(oauth_request.access_token)
+        logger.info(f"Verified Google user: {google_user_info.get('email')}")
+        
+        # Create or get user
+        user = create_or_get_user_from_google(db, google_user_info)
+        
+        # Create API key for user
+        api_key = create_api_key_for_user(db, user)
+        
+        # Create user profile response
+        user_profile = schemas.UserProfile(
+            id=user.id,
+            email=user.email,
+            name=f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else user.username,
+            is_admin=user.is_admin,
+            is_active=user.is_active,
+            picture=user.picture,
+            created_at=user.created_at,
+            last_login=user.last_login
+        )
+        
+        logger.info(f"User {user.email} logged in successfully")
+        
+        return schemas.LoginResponse(
+            user=user_profile,
+            api_key=api_key,
+            expires_in=86400  # 24 hours
+        )
+
+@app.get(
+    "/auth/me",
+    response_model=schemas.UserProfile,
+    tags=["Authentication"],
+    summary="Get current user information"
+)
+def get_current_user_info(
+    current_user: models.Users = Depends(get_current_user)
+):
+    """Get current authenticated user information"""
+    with timer("get_current_user_info"):
+        return schemas.UserProfile(
+            id=current_user.id,
+            email=current_user.email,
+            name=f"{current_user.first_name} {current_user.last_name}" if current_user.first_name and current_user.last_name else current_user.username,
+            is_admin=current_user.is_admin,
+            is_active=current_user.is_active,
+            picture=current_user.picture,
+            created_at=current_user.created_at,
+            last_login=current_user.last_login
+        )
+
+@app.post(
+    "/auth/logout",
+    tags=["Authentication"],
+    summary="Logout user"
+)
+def logout_user(
+    current_user: models.Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Logout current user"""
+    with timer("logout_user"):
+        logger.info(f"User {current_user.email} logging out")
+        # Could implement token revocation logic here if needed
+        return {"message": "Successfully logged out"}
+
+# Initial setup endpoint (bypasses API key requirement)
+@app.post(
+    "/setup/initialize",
+    tags=["Setup"],
+    summary="Initialize system without API key requirement"
+)
+def initialize_system(
+    setup_request: schemas.InitialSetupRequest,
+    db: Session = Depends(get_db)
+):
+    """Initialize system for first-time setup"""
+    with timer("initialize_system"):
+        if setup_request.action == "get_status":
+            # Check if any users exist
+            user_count = db.query(models.Users).count()
+            api_key_count = db.query(models.ApiKey).count()
+            
+            return {
+                "needs_setup": user_count == 0,
+                "has_users": user_count > 0,
+                "has_api_keys": api_key_count > 0,
+                "user_count": user_count
+            }
+        
+        elif setup_request.action == "create_admin" and setup_request.admin_data:
+            # Check if any users exist (only allow if no users)
+            user_count = db.query(models.Users).count()
+            if user_count > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="System already initialized"
+                )
+            
+            admin_data = setup_request.admin_data
+            
+            # Create admin user
+            admin_user = models.Users(
+                username=admin_data.get("username", admin_data.get("email")),
+                email=admin_data["email"],
+                first_name=admin_data.get("first_name"),
+                last_name=admin_data.get("last_name"),
+                is_admin=True,
+                is_active=True
+            )
+            
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
+            
+            # Create API key for admin
+            api_key = create_api_key_for_user(db, admin_user)
+            
+            logger.info(f"System initialized with admin user: {admin_user.email}")
+            
+            return {
+                "message": "System initialized successfully",
+                "admin_user": admin_user.email,
+                "api_key": api_key
+            }
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid setup action"
+            )
+
+
+@app.post("/rpc/proxy")
+async def proxy_rpc_request(
+    request: Request,
+    api_key: str = Security(get_api_key),
+):
+    """Proxy RPC requests to external servers to bypass CORS restrictions"""
+    with timer("proxy_rpc_request"):
+        import requests as python_requests
+        
+        # Get the request body
+        body = await request.json()
+        
+        # Get target RPC URL from request headers
+        rpc_url = request.headers.get("X-RPC-URL")
+        if not rpc_url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing X-RPC-URL header"
+            )
+        
+        try:
+            # Forward the request to the external RPC server
+            response = python_requests.post(
+                rpc_url,
+                json=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Proto-Tracker-Proxy/1.0"
+                },
+                timeout=30
+            )
+            
+            # Return the response as JSON
+            return response.json()
+            
+        except python_requests.exceptions.RequestException as e:
+            logger.error(f"RPC proxy request failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"RPC request failed: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in RPC proxy: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
+

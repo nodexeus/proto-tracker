@@ -12,3 +12,5 @@ requests==2.31.0
 pillow==10.1.0
 boto3>=1.28.0
 aiohttp>=3.12.15
+google-auth>=2.23.0
+psutil>=5.9.0
