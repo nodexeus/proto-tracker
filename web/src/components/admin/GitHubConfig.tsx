@@ -16,7 +16,7 @@ export function GitHubConfig() {
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  console.log('GitHubConfig: Component rendering, user:', user);
+  // console.log('GitHubConfig: Component rendering, user:', user);
 
   if (!user?.apiKey) {
     console.log('GitHubConfig: No user API key, showing auth warning');
@@ -40,17 +40,17 @@ export function GitHubConfig() {
 
   // Fetch existing configuration on mount
   useEffect(() => {
-    console.log('GitHubConfig: useEffect running, fetching config');
+    // console.log('GitHubConfig: useEffect running, fetching config');
     fetchConfig();
   }, []);
 
   const fetchConfig = async () => {
-    console.log('GitHubConfig: fetchConfig called');
+    // console.log('GitHubConfig: fetchConfig called');
     setFetchLoading(true);
     try {
       console.log('GitHubConfig: Making API call to get GitHub config');
       const config = await adminService.getGitHubConfig();
-      console.log('GitHubConfig: Received config:', config);
+      // console.log('GitHubConfig: Received config:', config);
       if (config) {
         setApiKey(config.api_key);
         setHasExistingConfig(true);
@@ -75,7 +75,7 @@ export function GitHubConfig() {
   };
 
   const handleSave = async () => {
-    console.log('GitHubConfig: handleSave called with apiKey:', apiKey);
+    // console.log('GitHubConfig: handleSave called with apiKey:', apiKey);
     if (!apiKey.trim()) {
       notifications.show({
         title: 'Validation Error',
@@ -88,7 +88,7 @@ export function GitHubConfig() {
     setLoading(true);
     try {
       if (hasExistingConfig) {
-        console.log('GitHubConfig: Updating existing config');
+        // console.log('GitHubConfig: Updating existing config');
         await adminService.updateGitHubConfig({ api_key: apiKey });
       } else {
         console.log('GitHubConfig: Creating new config');
@@ -116,7 +116,7 @@ export function GitHubConfig() {
   };
 
   if (fetchLoading) {
-    console.log('GitHubConfig: Rendering loading state');
+    // console.log('GitHubConfig: Rendering loading state');
     return (
       <Paper p="md" withBorder>
         <Title order={3} mb="md">
@@ -130,7 +130,7 @@ export function GitHubConfig() {
     );
   }
 
-  console.log('GitHubConfig: Rendering main form');
+  // console.log('GitHubConfig: Rendering main form');
   return (
     <Paper p="md" withBorder>
       <Title order={3} mb="md">

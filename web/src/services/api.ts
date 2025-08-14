@@ -29,7 +29,7 @@ export class ApiService {
       (config) => {
         if (this.apiKey) {
           config.headers['x-api-key'] = this.apiKey;
-          console.log('API Request:', config.method?.toUpperCase(), config.url, 'with API key:', this.apiKey);
+          // console.log('API Request:', config.method?.toUpperCase(), config.url, 'with API key:', this.apiKey);
         } else {
           console.warn('API Request:', config.method?.toUpperCase(), config.url, 'WITHOUT API KEY');
         }
@@ -43,7 +43,7 @@ export class ApiService {
     // Response interceptor for error handling
     this.axiosInstance.interceptors.response.use(
       (response: AxiosResponse) => {
-        console.log('API Response:', response.config.method?.toUpperCase(), response.config.url, 'Status:', response.status);
+        // console.log('API Response:', response.config.method?.toUpperCase(), response.config.url, 'Status:', response.status);
         return response;
       },
       (error: AxiosError) => {
