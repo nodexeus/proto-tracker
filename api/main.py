@@ -409,7 +409,17 @@ def get_s3_config(
     """Get the current S3 storage configuration."""
     config = crud.get_s3_config(db)
     if not config:
-        raise HTTPException(status_code=404, detail="S3 storage configuration not found")
+        # Return empty config instead of 404 when not configured
+        return schemas.S3Config(
+            id=0,
+            bucket_name="",
+            endpoint_url="",
+            access_key_id="",
+            secret_access_key="",
+            region="us-west-004",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
     return config
 
 

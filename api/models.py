@@ -88,7 +88,7 @@ class Users(Base):
     oauth_google = Column(String(100), nullable=True)
     first_name = Column(String(64), nullable=True)
     last_name = Column(String(64), nullable=True)
-    picture = Column(String(2048), nullable=True)  # Increased from 1024 to 2048 to accommodate longer URLs
+    picture = Column(String(2048), nullable=True)
     is_admin = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
