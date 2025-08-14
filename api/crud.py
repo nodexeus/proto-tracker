@@ -604,8 +604,8 @@ def get_user_profile(db: Session, user_id: int):
     profile = schemas.UserProfile(
         id=user.id,
         email=user.email,
-        username=user.username,
-        name=f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else user.username,
+        username=getattr(user, 'username', None),
+        name=f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else (getattr(user, 'username', None) or user.email),
         first_name=user.first_name,
         last_name=user.last_name,
         is_admin=user.is_admin,

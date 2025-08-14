@@ -173,7 +173,7 @@ class AdminUsersResponse(BaseModel):
 class UserProfile(BaseModel):
     id: int
     email: str
-    username: str
+    username: Union[str, None] = None
     name: str
     first_name: Union[str, None] = None
     last_name: Union[str, None] = None

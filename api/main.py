@@ -2318,7 +2318,10 @@ def login_with_google(
         user_profile = schemas.UserProfile(
             id=user.id,
             email=user.email,
-            name=f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else user.username,
+            username=getattr(user, 'username', None),
+            name=f"{user.first_name} {user.last_name}" if user.first_name and user.last_name else (getattr(user, 'username', None) or user.email),
+            first_name=user.first_name,
+            last_name=user.last_name,
             is_admin=user.is_admin,
             is_active=user.is_active,
             picture=user.picture,
@@ -2348,8 +2351,8 @@ def get_current_user_info(
         return schemas.UserProfile(
             id=current_user.id,
             email=current_user.email,
-            username=current_user.username,
-            name=f"{current_user.first_name} {current_user.last_name}" if current_user.first_name and current_user.last_name else current_user.username,
+            username=getattr(current_user, 'username', None),
+            name=f"{current_user.first_name} {current_user.last_name}" if current_user.first_name and current_user.last_name else (getattr(current_user, 'username', None) or current_user.email),
             first_name=current_user.first_name,
             last_name=current_user.last_name,
             is_admin=current_user.is_admin,
