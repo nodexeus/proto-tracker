@@ -1,6 +1,6 @@
 """Add multiple notification URLs and Telegram support
 
-Revision ID: add_multiple_notification_urls
+Revision ID: a1b2c3d4e5f6
 Revises: 0748895fb1d0
 Create Date: 2025-08-14 17:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'add_multiple_notification_urls'
+revision = 'a1b2c3d4e5f6'
 down_revision = '0748895fb1d0'
 branch_labels = None
 depends_on = None
