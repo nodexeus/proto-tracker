@@ -2,7 +2,7 @@
  * Admin user management component for managing user accounts and permissions
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Stack,
   Group,
@@ -41,32 +41,60 @@ import { formatDate, getInitials, getApiConfig } from '../../utils';
 
 interface User {
   id: number;
+  username: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
+  is_admin: boolean;
+  is_active: boolean;
+  picture?: string;
+  oauth_github?: string;
+  oauth_google?: string;
+  // Computed properties
   name?: string;
-  role: 'admin' | 'user';
-  isActive: boolean;
+  role?: 'admin' | 'user';
+  isActive?: boolean;
   lastLogin?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 interface UserFormData {
+  username: string;
   email: string;
-  name?: string;
-  role: 'admin' | 'user';
-  isActive: boolean;
+  first_name?: string;
+  last_name?: string;
+  is_admin: boolean;
+  is_active: boolean;
+}
+
+// Helper function to process user data and add computed properties
+function processUserData(rawUser: any): User {
+  const fullName = [rawUser.first_name, rawUser.last_name].filter(Boolean).join(' ');
+  return {
+    ...rawUser,
+    name: fullName || rawUser.username || rawUser.email,
+    role: rawUser.is_admin ? 'admin' : 'user',
+    isActive: rawUser.is_active,
+  };
 }
 
 class UserManagementService extends ApiService {
   async getUsers(page = 1, limit = 20): Promise<{ users: User[]; total: number; pages: number }> {
-    return this.get<{ users: User[]; total: number; pages: number }>(`/admin/users?page=${page}&limit=${limit}`);
+    const response = await this.get<{ users: any[]; total: number; pages: number }>(`/admin/users?page=${page}&limit=${limit}`);
+    return {
+      ...response,
+      users: response.users.map(processUserData)
+    };
   }
 
   async createUser(data: UserFormData): Promise<User> {
-    return this.post<User>('/admin/users', data);
+    const rawUser = await this.post<any>('/admin/users', data);
+    return processUserData(rawUser);
   }
 
   async updateUser(id: number, data: Partial<UserFormData>): Promise<User> {
-    return this.patch<User>(`/admin/users/${id}`, data);
+    const rawUser = await this.patch<any>(`/admin/users/${id}`, data);
+    return processUserData(rawUser);
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -74,7 +102,8 @@ class UserManagementService extends ApiService {
   }
 
   async toggleUserStatus(id: number): Promise<User> {
-    return this.patch<User>(`/admin/users/${id}/toggle-status`);
+    const rawUser = await this.patch<any>(`/admin/users/${id}/toggle-status`);
+    return processUserData(rawUser);
   }
 }
 
@@ -89,12 +118,15 @@ interface UserFormProps {
 function UserForm({ opened, onClose, user, onSubmit, loading }: UserFormProps) {
   const form = useForm<UserFormData>({
     initialValues: {
+      username: user?.username || '',
       email: user?.email || '',
-      name: user?.name || '',
-      role: user?.role || 'user',
-      isActive: user?.isActive ?? true,
+      first_name: user?.first_name || '',
+      last_name: user?.last_name || '',
+      is_admin: user?.is_admin ?? false,
+      is_active: user?.is_active ?? true,
     },
     validate: {
+      username: (value) => !value.trim() ? 'Username is required' : null,
       email: (value) => {
         if (!value.trim()) return 'Email is required';
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -102,6 +134,20 @@ function UserForm({ opened, onClose, user, onSubmit, loading }: UserFormProps) {
       },
     },
   });
+
+  // Re-initialize form when user prop changes
+  useEffect(() => {
+    if (opened) {
+      form.setValues({
+        username: user?.username || '',
+        email: user?.email || '',
+        first_name: user?.first_name || '',
+        last_name: user?.last_name || '',
+        is_admin: user?.is_admin ?? false,
+        is_active: user?.is_active ?? true,
+      });
+    }
+  }, [user, opened]);
 
   const handleSubmit = useCallback(
     async (values: UserFormData) => {
@@ -122,6 +168,14 @@ function UserForm({ opened, onClose, user, onSubmit, loading }: UserFormProps) {
       <form onSubmit={form.onSubmit(handleSubmit)}>
         <Stack gap="md">
           <TextInput
+            label="Username"
+            placeholder="username"
+            required
+            {...form.getInputProps('username')}
+            disabled={loading}
+          />
+
+          <TextInput
             label="Email Address"
             placeholder="user@example.com"
             required
@@ -129,22 +183,31 @@ function UserForm({ opened, onClose, user, onSubmit, loading }: UserFormProps) {
             disabled={loading}
           />
 
-          <TextInput
-            label="Full Name"
-            placeholder="Enter user's full name"
-            {...form.getInputProps('name')}
-            disabled={loading}
-          />
+          <Group grow>
+            <TextInput
+              label="First Name"
+              placeholder="John"
+              {...form.getInputProps('first_name')}
+              disabled={loading}
+            />
+            <TextInput
+              label="Last Name"
+              placeholder="Doe"
+              {...form.getInputProps('last_name')}
+              disabled={loading}
+            />
+          </Group>
 
           <Select
             label="Role"
             placeholder="Select user role"
             required
             data={[
-              { value: 'user', label: 'User' },
-              { value: 'admin', label: 'Administrator' },
+              { value: 'false', label: 'User' },
+              { value: 'true', label: 'Administrator' },
             ]}
-            {...form.getInputProps('role')}
+            value={form.values.is_admin ? 'true' : 'false'}
+            onChange={(value) => form.setFieldValue('is_admin', value === 'true')}
             disabled={loading}
           />
 
@@ -156,8 +219,8 @@ function UserForm({ opened, onClose, user, onSubmit, loading }: UserFormProps) {
               { value: 'true', label: 'Active' },
               { value: 'false', label: 'Inactive' },
             ]}
-            value={form.values.isActive ? 'true' : 'false'}
-            onChange={(value) => form.setFieldValue('isActive', value === 'true')}
+            value={form.values.is_active ? 'true' : 'false'}
+            onChange={(value) => form.setFieldValue('is_active', value === 'true')}
             disabled={loading}
           />
 
@@ -383,16 +446,19 @@ export function AdminUserManagement() {
               User Management
             </Text>
             <Text size="sm" c="dimmed">
-              {usersData?.total || 0} total user{(usersData?.total || 0) !== 1 ? 's' : ''}
+              {usersData?.total || 0} total user{(usersData?.total || 0) !== 1 ? 's' : ''} • Users are created automatically via Google OAuth
             </Text>
           </div>
 
+          {/* Hide Create User button - users are created via Google OAuth only */}
+          {/* 
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={handleCreateUser}
           >
             Create User
           </Button>
+          */}
         </Group>
       </Card>
 
@@ -406,7 +472,7 @@ export function AdminUserManagement() {
                 No Users Found
               </Text>
               <Text c="dimmed">
-                Create your first user account to get started.
+                Users will appear here after they sign in with Google OAuth.
               </Text>
             </div>
           </Stack>
@@ -448,26 +514,26 @@ export function AdminUserManagement() {
 
                   <Table.Td>
                     <Badge
-                      color={user.role === 'admin' ? 'red' : 'blue'}
+                      color={user.is_admin ? 'red' : 'blue'}
                       variant="light"
                       leftSection={
-                        user.role === 'admin' ? (
+                        user.is_admin ? (
                           <IconCrown size={12} />
                         ) : (
                           <IconUser size={12} />
                         )
                       }
                     >
-                      {user.role === 'admin' ? 'Admin' : 'User'}
+                      {user.is_admin ? 'Admin' : 'User'}
                     </Badge>
                   </Table.Td>
 
                   <Table.Td>
                     <Badge
-                      color={user.isActive ? '#7fcf00' : 'gray'}
-                      variant={user.isActive ? 'light' : 'outline'}
+                      color={user.is_active ? '#7fcf00' : 'gray'}
+                      variant={user.is_active ? 'light' : 'outline'}
                     >
-                      {user.isActive ? 'Active' : 'Inactive'}
+                      {user.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </Table.Td>
 
@@ -495,11 +561,11 @@ export function AdminUserManagement() {
                         </ActionIcon>
                       </Tooltip>
 
-                      <Tooltip label={user.isActive ? 'Deactivate' : 'Activate'}>
+                      <Tooltip label={user.is_active ? 'Deactivate' : 'Activate'}>
                         <ActionIcon
                           variant="subtle"
                           size="sm"
-                          color={user.isActive ? 'orange' : '#7fcf00'}
+                          color={user.is_active ? 'orange' : '#7fcf00'}
                           onClick={() => handleToggleStatus(user)}
                           disabled={user.id === currentUser?.id}
                         >

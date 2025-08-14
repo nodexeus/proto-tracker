@@ -84,7 +84,7 @@ export class AuthService extends ApiService {
         last_name: userInfo.family_name,
         picture: userInfo.picture,
         oauth_google: userInfo.sub,
-        apiKey: import.meta.env.VITE_API_KEY || 'mock-api-key-for-testing', // Use env API key for testing
+        apiKey: import.meta.env.VITE_API_KEY, // Use env API key for testing
       };
 
       console.log('Created auth user:', authUser);
