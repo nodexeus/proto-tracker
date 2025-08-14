@@ -24,7 +24,7 @@ export class ClientService extends ApiService {
    * Get all clients
    */
   async getClients(): Promise<Client[]> {
-    return this.get<Client[]>('/client');
+    return this.get<Client[]>('/client/');
   }
 
   /**
