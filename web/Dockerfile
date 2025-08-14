@@ -107,6 +107,9 @@
 
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_API_URL
+ARG VITE_GOOGLE_REDIRECT_URI
 COPY package*.json ./
 RUN npm ci
 COPY . .
