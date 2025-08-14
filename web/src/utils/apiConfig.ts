@@ -21,9 +21,9 @@ export function getApiConfig(userApiKey?: string): ApiConfig {
   //   envVars: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
   // });
   
-  if (!apiKey) {
-    console.warn('No API key found in user authentication or environment variables');
-  }
+  // if (!apiKey) {
+  //   console.warn('No API key found in user authentication or environment variables');
+  // }
 
   return {
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8001',

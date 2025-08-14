@@ -128,7 +128,7 @@ export class ProtocolService extends ApiService {
    * Get a specific snapshot
    */
   async getSnapshot(protocolId: number,snapshotId: number): Promise<Snapshot> {
-    return this.get<Snapshot>(`/protocols/${protocolId}/snapshots/${snapshotId}/files`);
+    return this.get<Snapshot>(`/protocols/${protocolId}/snapshot-files/${snapshotId}`);
   }
 
   /**
