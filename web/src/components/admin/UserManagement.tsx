@@ -72,7 +72,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Error',
         message: 'Failed to fetch users',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     } finally {
@@ -122,7 +122,7 @@ export function UserManagement() {
         notifications.show({
           title: 'Success',
           message: 'User updated successfully',
-          color: 'green',
+          color: '#7fcf00',
           icon: <IconCheck size={16} />,
         });
       } else {
@@ -130,7 +130,7 @@ export function UserManagement() {
         notifications.show({
           title: 'Success',
           message: 'User created successfully',
-          color: 'green',
+          color: '#7fcf00',
           icon: <IconCheck size={16} />,
         });
       }
@@ -142,7 +142,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Error',
         message: error instanceof Error ? error.message : 'Failed to save user',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     }
@@ -157,7 +157,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Success',
         message: 'User deleted successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       fetchUsers(currentPage);
@@ -166,7 +166,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Error',
         message: error instanceof Error ? error.message : 'Failed to delete user',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     } finally {
@@ -181,7 +181,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Success',
         message: 'User status updated successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       fetchUsers(currentPage);
@@ -190,7 +190,7 @@ export function UserManagement() {
       notifications.show({
         title: 'Error',
         message: error instanceof Error ? error.message : 'Failed to update user status',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     } finally {
@@ -258,7 +258,7 @@ export function UserManagement() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={user.is_active ? 'green' : 'red'}>
+                      <Badge color={user.is_active ? '#7fcf00' : '#f0000'}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </Table.Td>
@@ -273,7 +273,7 @@ export function UserManagement() {
                         </ActionIcon>
                         <ActionIcon
                           variant="light"
-                          color={user.is_active ? 'orange' : 'green'}
+                          color={user.is_active ? 'orange' : '#7fcf00'}
                           onClick={() => handleToggleUserStatus(user.id)}
                           loading={actionLoading === user.id}
                         >

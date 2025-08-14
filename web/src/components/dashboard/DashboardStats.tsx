@@ -31,6 +31,7 @@ import {
 import { ProtocolService } from '../../services/protocols';
 import { useAuth } from '../../hooks/useAuth';
 import { getApiConfig } from '../../utils';
+import { StackedBarChart } from './StackedBarChart';
 
 interface StatCardProps {
   title: string;
@@ -58,13 +59,13 @@ function StatCard({ title, value, change, color = 'blue', icon }: StatCardProps)
           {hasChange && (
             <Group gap="xs" align="center">
               {isPositive ? (
-                <IconTrendingUp size={16} color="green" />
+                <IconTrendingUp size={16} color="#7fcf00" />
               ) : isNegative ? (
                 <IconTrendingDown size={16} color="red" />
               ) : null}
               <Text
                 size="sm"
-                c={isPositive ? 'green' : isNegative ? 'red' : 'dimmed'}
+                c={isPositive ? '#7fcf00' : isNegative ? '#f0000' : 'dimmed'}
                 fw={500}
               >
                 {change > 0 ? '+' : ''}{change}%
@@ -158,12 +159,6 @@ export function DashboardStats() {
     color: getNetworkColor(network)
   }));
 
-  const monthlyData = stats.updates_by_month.map(item => ({
-    month: item.month,
-    Updates: item.updates,
-    'Hard Forks': item.hard_forks
-  }));
-
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="center">
@@ -190,7 +185,7 @@ export function DashboardStats() {
         <StatCard
           title="Total Clients"
           value={stats.total_clients}
-          color="green"
+          color="#7fcf00"
           icon={<IconGitFork size={24} />}
         />
         <StatCard
@@ -202,7 +197,7 @@ export function DashboardStats() {
         <StatCard
           title="Recent Hard Forks"
           value={stats.recent_hard_forks}
-          color="red"
+          color="#ff0000"
           icon={<IconAlertTriangle size={24} />}
         />
       </SimpleGrid>
@@ -267,33 +262,11 @@ export function DashboardStats() {
               <Badge variant="light">{stats.total_updates} total</Badge>
             </Group>
             
-            {monthlyData.length > 0 ? (
-              <Stack gap="xs">
-                {monthlyData.slice(-6).map((item) => (
-                  <Group key={item.month} justify="space-between">
-                    <Text size="sm" w={100}>{item.month}</Text>
-                    <Group gap="sm" style={{ flex: 1 }}>
-                      <Progress
-                        value={Math.max((item.Updates / Math.max(...monthlyData.map(d => d.Updates))) * 100, 2)}
-                        size="sm"
-                        color="blue"
-                        style={{ flex: 1 }}
-                      />
-                      <Text size="xs" c="dimmed" w={30}>
-                        {item.Updates}
-                      </Text>
-                      {item['Hard Forks'] > 0 && (
-                        <Badge size="xs" color="red" variant="light">
-                          {item['Hard Forks']} HF
-                        </Badge>
-                      )}
-                    </Group>
-                  </Group>
-                ))}
-                <Text size="xs" c="dimmed" ta="center" mt="xs">
-                  Showing last 6 months
-                </Text>
-              </Stack>
+            {stats.updates_by_month.length > 0 ? (
+              <StackedBarChart 
+                data={stats.updates_by_month} 
+                maxItems={6}
+              />
             ) : (
               <Text size="sm" c="dimmed" ta="center" py="xl">
                 No update data available
@@ -336,7 +309,7 @@ export function DashboardStats() {
                 sections={[
                   {
                     value: stats.recent_updates > 0 ? (stats.recent_hard_forks / stats.recent_updates) * 100 : 0,
-                    color: 'red'
+                    color: '#f0000'
                   }
                 ]}
                 label={
@@ -357,7 +330,7 @@ export function DashboardStats() {
                 sections={[
                   {
                     value: stats.total_clients > 0 ? (stats.total_protocols / (stats.total_protocols + stats.total_clients)) * 100 : 50,
-                    color: 'green'
+                    color: '#7fcf00'
                   }
                 ]}
                 label={
@@ -435,7 +408,7 @@ export function DashboardStats() {
 // Helper function to get consistent colors for networks
 function getNetworkColor(network: string): string {
   const colors = [
-    '#228be6', '#40c057', '#fd7e14', '#e03131', '#7c2d12', '#862e9c', 
+    '#228be6', '#40c057', '#fd7e14', '#e03131', '#ff0000', '#862e9c', 
     '#0c8599', '#495057', '#c92a2a', '#5c7cfa', '#51cf66', '#ffd43b'
   ];
   

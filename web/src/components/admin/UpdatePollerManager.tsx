@@ -109,14 +109,14 @@ export function UpdatePollerManager({
       notifications.show({
         title: 'Update Poller Started',
         message: 'The GitHub update poller is now running and state saved to database',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconPlayerPlay size={16} />,
       });
     } catch (error) {
       notifications.show({
         title: 'Failed to Start Poller',
         message: 'Could not start the GitHub update poller',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     }
@@ -135,7 +135,7 @@ export function UpdatePollerManager({
       notifications.show({
         title: 'Failed to Stop Poller',
         message: 'Could not stop the GitHub update poller',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     }
@@ -158,14 +158,14 @@ export function UpdatePollerManager({
       notifications.show({
         title: 'Manual Poll Complete',
         message: 'Successfully checked all repositories for updates',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     } catch (error) {
       notifications.show({
         title: 'Poll Failed',
         message: error instanceof Error ? error.message : 'Unknown error occurred',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     }
@@ -194,14 +194,14 @@ export function UpdatePollerManager({
       notifications.show({
         title: 'Settings Saved',
         message: `Polling interval saved to database: ${validInterval} minutes`,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconSettings size={16} />,
       });
     } catch (error) {
       notifications.show({
         title: 'Save Failed',
         message: 'Failed to save polling interval to database',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     }
@@ -219,7 +219,7 @@ export function UpdatePollerManager({
           </div>
           <Group>
             <Badge
-              color={isRunning ? 'green' : 'gray'}
+              color={isRunning ? '#7fcf00' : 'gray'}
               variant="light"
               leftSection={isRunning ? <IconPlayerPlay size={12} /> : <IconPlayerPause size={12} />}
             >
@@ -229,23 +229,23 @@ export function UpdatePollerManager({
         </Group>
 
         {status && (
-          <Alert color={status.errors.length > 0 ? 'red' : 'blue'} icon={<IconClock size={16} />}>
+          <Alert color={status.isRunning && status.taskAlive ? '#7fcf00' : 'blue'} icon={<IconClock size={16} />}>
             <Text size="sm">
               {status.lastRun && `Last run: ${status.lastRun.toLocaleString()}`}
               {status.nextRun && ` | Next run: ${status.nextRun.toLocaleString()}`}
             </Text>
-            {status.errors.length > 0 && (
-              <Text size="sm" c="red" mt={4}>
-                {status.errors.length} error(s) in last run
-              </Text>
-            )}
+            <Text size="sm" mt={4}>
+              Server task: {status.taskAlive ? 'Active' : 'Inactive'} | 
+              Database enabled: {status.databaseEnabled ? 'Yes' : 'No'} | 
+              Interval: {status.pollingInterval} minutes
+            </Text>
           </Alert>
         )}
 
         <Group>
           <Button
             onClick={isRunning ? handleStop : handleStart}
-            color={isRunning ? 'red' : 'green'}
+            color={isRunning ? '#f0000' : '#7fcf00'}
             leftSection={isRunning ? <IconPlayerPause size={16} /> : <IconPlayerPlay size={16} />}
             disabled={isPolling}
           >
@@ -273,8 +273,8 @@ export function UpdatePollerManager({
               });
             }}
             variant="outline"
-            color="orange"
-            leftSection={<IconClock size={16} />}
+            
+            leftSection={<IconClock size={16} /> }
             size="sm"
           >
             Reset Timestamps
@@ -299,7 +299,7 @@ export function UpdatePollerManager({
               <Stack gap="xs">
                 <Text size="sm" fw={500}>GitHub API Key</Text>
                 <Group gap="sm">
-                  <Badge color={localGitHubKey ? 'green' : 'red'} variant="light">
+                  <Badge color={localGitHubKey ? '#7fcf00' : '#f0000'} variant="light">
                     {localGitHubKey ? 'Configured' : 'Not Set'}
                   </Badge>
                   {localGitHubKey && (
@@ -372,7 +372,7 @@ export function UpdatePollerManager({
                       <Table.Td>
                         <Badge 
                           variant="light" 
-                          color={result.updates.some(u => u.parsed.hasHardFork) ? 'red' : 'gray'}
+                          color={result.updates.some(u => u.parsed.hasHardFork) ? '#f0000' : 'gray'}
                           leftSection={<IconGitBranch size={12} />}
                         >
                           {result.updates.filter(u => u.parsed.hasHardFork).length}
@@ -384,7 +384,7 @@ export function UpdatePollerManager({
                             {result.errors.length}
                           </Badge>
                         ) : (
-                          <Badge variant="light" color="green">
+                          <Badge variant="light" color="#7fcf00">
                             0
                           </Badge>
                         )}

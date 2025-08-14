@@ -2,6 +2,8 @@
  * Ethereum JSON-RPC client service
  */
 
+import { ApiService } from './api';
+
 export interface RpcRequest {
   jsonrpc: '2.0';
   method: string;
@@ -23,15 +25,22 @@ export interface RpcResponse<T = unknown> {
 export class EthRpcService {
   private rpcUrl: string;
   private requestId = 1;
+  private apiService: ApiService;
+  private useProxy = false;
+  private apiKey: string;
 
   constructor(rpcUrl: string) {
-    // In development mode, use the proxy to avoid CORS issues
-    if (import.meta.env.DEV && rpcUrl.includes('rpc.nodexeus.io')) {
-      // Convert direct RPC URL to use the proxy
-      this.rpcUrl = `/api/rpc-proxy${rpcUrl.replace('http://rpc.nodexeus.io', '')}`;
-    } else {
-      this.rpcUrl = rpcUrl;
-    }
+    this.rpcUrl = rpcUrl;
+    this.apiKey = localStorage.getItem('proto_tracker_api_key') || '';
+    
+    this.apiService = new ApiService({
+      baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8001',
+      timeout: 30000,
+      apiKey: this.apiKey
+    });
+    
+    // Use proxy for external RPC calls to avoid CORS issues
+    this.useProxy = rpcUrl.includes('rpc.nodexeus.io') || !rpcUrl.startsWith(window.location.origin);
   }
 
   private async makeRequest<T>(method: string, params: unknown[] = []): Promise<T> {
@@ -43,40 +52,66 @@ export class EthRpcService {
     };
 
     try {
-      const response = await fetch(this.rpcUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        credentials: 'omit',
-        body: JSON.stringify(request),
-      });
+      // Use the API proxy for external RPC calls to avoid CORS issues
+      if (this.useProxy) {
+        const config = this.apiService.getConfig();
+        const response = await fetch(`${config.baseURL}/rpc/proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'x-api-key': this.apiKey,
+            'X-RPC-URL': this.rpcUrl,
+          },
+          body: JSON.stringify(request),
+        });
 
-      if (!response.ok) {
-        // Check if it's a CORS error specifically
-        if (response.status === 0 || response.status === 400) {
-          throw new Error(`CORS error - RPC endpoint may not allow cross-origin requests. Status: ${response.status}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Proxy request failed: ${response.status} - ${errorText}`);
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+
+        const data: RpcResponse<T> = await response.json();
+        
+        if (data.error) {
+          throw new Error(`RPC error: ${data.error.message} (code: ${data.error.code})`);
+        }
+
+        if (data.result === undefined) {
+          throw new Error('RPC response missing result');
+        }
+
+        return data.result;
+      } else {
+        // Direct RPC call for same-origin requests
+        const response = await fetch(this.rpcUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          body: JSON.stringify(request),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data: RpcResponse<T> = await response.json();
+
+        if (data.error) {
+          throw new Error(`RPC error: ${data.error.message} (code: ${data.error.code})`);
+        }
+
+        if (data.result === undefined) {
+          throw new Error('RPC response missing result');
+        }
+
+        return data.result;
       }
-
-      const data: RpcResponse<T> = await response.json();
-
-      if (data.error) {
-        throw new Error(`RPC error: ${data.error.message} (code: ${data.error.code})`);
-      }
-
-      if (data.result === undefined) {
-        throw new Error('RPC response missing result');
-      }
-
-      return data.result;
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error(`Network error - likely CORS issue. The RPC endpoint "${this.rpcUrl}" may not allow cross-origin requests from this domain.`);
-      }
       if (error instanceof Error) {
         throw new Error(`Failed to call RPC method ${method}: ${error.message}`);
       }

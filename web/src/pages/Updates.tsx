@@ -2,7 +2,7 @@
  * Updates page - Lists all protocol updates/releases with client and protocol associations
  */
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   Group,
@@ -20,6 +20,7 @@ import {
   ScrollArea,
   Tooltip,
   ActionIcon,
+  Pagination,
 } from '@mantine/core';
 import {
   IconSearch,
@@ -44,22 +45,25 @@ export function Updates() {
   const [clientFilter, setClientFilter] = useState<string>('');
   const [selectedUpdate, setSelectedUpdate] = useState<ProtocolUpdate | null>(null);
   const [modalOpened, setModalOpened] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const {
-    data: updates,
+    data: allUpdates,
     isLoading,
     error,
     refetch,
-  } = useEnrichedProtocolUpdates();
+  } = useEnrichedProtocolUpdates(0, 10000); // Fetch all updates
 
   // Get clients for filter dropdown
   const { data: clients } = useClients();
 
-  // Memoized filtering logic
-  const filteredUpdates = useMemo(() => {
-    if (!updates) return [];
+  // Memoized filtering and pagination logic
+  const { filteredUpdates, paginatedUpdates, totalPages, totalFiltered } = useMemo(() => {
+    if (!allUpdates) return { filteredUpdates: [], paginatedUpdates: [], totalPages: 0, totalFiltered: 0 };
     
-    return updates.filter((update) => {
+    // First apply filters
+    const filtered = allUpdates.filter((update) => {
       const matchesSearch = !searchQuery || 
         update.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         update.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -78,7 +82,25 @@ export function Updates() {
 
       return matchesSearch && matchesClient && matchesStatus;
     });
-  }, [updates, searchQuery, clientFilter, statusFilter]);
+
+    // Then apply pagination
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginated = filtered.slice(startIndex, endIndex);
+    const totalPageCount = Math.ceil(filtered.length / pageSize);
+
+    return {
+      filteredUpdates: filtered,
+      paginatedUpdates: paginated,
+      totalPages: totalPageCount,
+      totalFiltered: filtered.length
+    };
+  }, [allUpdates, searchQuery, clientFilter, statusFilter, currentPage, pageSize]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, clientFilter, statusFilter]);
 
   // Get unique clients for filter dropdown from actual clients
   const clientOptions = useMemo(() => {
@@ -184,12 +206,20 @@ export function Updates() {
         {/* Updates Stats */}
         <Group gap="md">
           <Text size="sm" c="dimmed">
-            {filteredUpdates.length} of {updates?.length || 0} updates
+            Showing {paginatedUpdates.length} of {totalFiltered} updates
+            {totalFiltered !== (allUpdates?.length || 0) && (
+              <span> (filtered from {allUpdates?.length || 0} total)</span>
+            )}
           </Text>
+          {totalPages > 1 && (
+            <Text size="sm" c="dimmed">
+              Page {currentPage} of {totalPages}
+            </Text>
+          )}
         </Group>
 
         {/* Updates List */}
-        {filteredUpdates.length === 0 ? (
+        {totalFiltered === 0 ? (
           <Center h={200}>
             <Stack align="center" gap="md">
               <Text size="lg" c="dimmed">
@@ -218,7 +248,7 @@ export function Updates() {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {filteredUpdates.map((update) => (
+                  {paginatedUpdates.map((update) => (
                     <Table.Tr 
                       key={update.id}
                       style={{ cursor: 'pointer' }}
@@ -275,7 +305,7 @@ export function Updates() {
                             <Badge size="xs" color="red">Hard Fork</Badge>
                           )}
                           {!update.is_draft && !update.is_prerelease && !update.hard_fork && (
-                            <Badge size="xs" color="green">Release</Badge>
+                            <Badge size="xs" color="#7fcf00">Release</Badge>
                           )}
                         </Group>
                       </Table.Td>
@@ -348,6 +378,36 @@ export function Updates() {
               </Table>
             </ScrollArea>
           </Card>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <Group justify="space-between" align="center">
+            <Select
+              label="Items per page"
+              value={pageSize.toString()}
+              onChange={(value) => {
+                setPageSize(Number(value));
+                setCurrentPage(1); // Reset to first page when changing page size
+              }}
+              data={[
+                { value: '25', label: '25' },
+                { value: '50', label: '50' },
+                { value: '100', label: '100' },
+                { value: '200', label: '200' },
+              ]}
+              style={{ width: 150 }}
+            />
+            
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+              siblings={1}
+            />
+          </Group>
         )}
       </Stack>
 

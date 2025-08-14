@@ -101,22 +101,24 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <AppShell
       header={{ height: 60 }}
-      navbar={{
+      navbar={user ? {
         width: 280,
         breakpoint: 'sm',
         collapsed: { mobile: !opened },
-      }}
+      } : undefined}
       padding="md"
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group>
-            <Burger
-              opened={opened}
-              onClick={toggle}
-              hiddenFrom="sm"
-              size="sm"
-            />
+            {user && (
+              <Burger
+                opened={opened}
+                onClick={toggle}
+                hiddenFrom="sm"
+                size="sm"
+              />
+            )}
             <Group gap="xs">
               <IconDatabase
                 size={24}
@@ -225,41 +227,43 @@ export function AppLayout({ children }: AppLayoutProps) {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <AppShell.Section grow>
-          <Stack gap="xs">
-            {filteredNavItems.map((item) => (
-              <NavLink
-                key={item.path}
-                href={item.path}
-                label={item.label}
-                description={item.description}
-                leftSection={<item.icon size="1rem" stroke={1.5} />}
-                rightSection={
-                  item.adminOnly ? (
-                    <Badge size="xs" variant="light" color="orange">
-                      Admin
-                    </Badge>
-                  ) : null
-                }
-                active={location.pathname === item.path}
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate(item.path);
-                  if (opened) toggle(); // Close mobile menu
-                }}
-              />
-            ))}
-          </Stack>
-        </AppShell.Section>
+      {user && (
+        <AppShell.Navbar p="md">
+          <AppShell.Section grow>
+            <Stack gap="xs">
+              {filteredNavItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  href={item.path}
+                  label={item.label}
+                  description={item.description}
+                  leftSection={<item.icon size="1rem" stroke={1.5} />}
+                  rightSection={
+                    item.adminOnly ? (
+                      <Badge size="xs" variant="light" color="orange">
+                        Admin
+                      </Badge>
+                    ) : null
+                  }
+                  active={location.pathname === item.path}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigate(item.path);
+                    if (opened) toggle(); // Close mobile menu
+                  }}
+                />
+              ))}
+            </Stack>
+          </AppShell.Section>
 
-        <AppShell.Section>
-          <Divider my="sm" />
-          <Text size="xs" c="dimmed" ta="center">
-            Proto-tracker v1.0.0
-          </Text>
-        </AppShell.Section>
-      </AppShell.Navbar>
+          <AppShell.Section>
+            <Divider my="sm" />
+            <Text size="xs" c="dimmed" ta="center">
+              Proto-tracker v1.0.0
+            </Text>
+          </AppShell.Section>
+        </AppShell.Navbar>
+      )}
 
       <AppShell.Main>{children}</AppShell.Main>
     </AppShell>

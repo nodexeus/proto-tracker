@@ -102,7 +102,7 @@ function SnapshotItem({ snapshot, onScanTrigger, isScanning }: SnapshotItemProps
               <Badge size="sm" color="blue">
                 {formatBytes(snapshot.total_size)}
               </Badge>
-              <Badge size="sm" color="green" variant="light">
+              <Badge size="sm" color="#7fcf00" variant="light">
                 {snapshot.file_count.toLocaleString()} files
               </Badge>
             </Group>
@@ -314,7 +314,7 @@ export function SnapshotsList({ snapshots, protocolId }: SnapshotsListProps) {
       notifications.show({
         title: 'Scan Completed',
         message: result.message,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       queryClient.invalidateQueries({ queryKey: ['protocol-snapshots', protocolId] });
@@ -342,7 +342,7 @@ export function SnapshotsList({ snapshots, protocolId }: SnapshotsListProps) {
       notifications.show({
         title: 'Snapshot Rescanned',
         message: 'Snapshot has been rescanned successfully.',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     }, 2000);

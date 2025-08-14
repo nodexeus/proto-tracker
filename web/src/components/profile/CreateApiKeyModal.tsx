@@ -121,7 +121,7 @@ export function CreateApiKeyModal({ opened, onClose }: CreateApiKeyModalProps) {
         notifications.show({
           title: 'Copied!',
           message: 'API key copied to clipboard',
-          color: 'green',
+          color: '#7fcf00',
           icon: <IconCheck size={16} />,
         });
       } catch (error) {
@@ -233,7 +233,7 @@ export function CreateApiKeyModal({ opened, onClose }: CreateApiKeyModalProps) {
         <Stack gap="md">
           <Alert
             icon={<IconCheck size={16} />}
-            color="green"
+            color="#7fcf00"
             variant="light"
           >
             <Text size="sm" fw={500}>
@@ -296,7 +296,6 @@ export function CreateApiKeyModal({ opened, onClose }: CreateApiKeyModalProps) {
           <Group justify="flex-end" mt="md">
             <Button
               onClick={handleAcknowledge}
-              color="green"
             >
               I've Saved the API Key
             </Button>

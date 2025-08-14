@@ -1,5 +1,7 @@
 import { createTheme } from '@mantine/core';
-import type { MantineColorsTuple } from '@mantine/core';
+import type { MantineColorsTuple, ButtonProps } from '@mantine/core';
+import { text } from 'stream/consumers';
+
 
 // Custom color palette for proto-tracker
 const protoBlue: MantineColorsTuple = [
@@ -29,16 +31,16 @@ const protoGrey: MantineColorsTuple = [
 ]
 
 const protoGreen: MantineColorsTuple = [
-  '#ebfbee',
-  '#d3f9d8',
-  '#b2f2bb',
-  '#8ce99a',
-  '#69db7c',
-  '#51cf66',
-  '#40c057',
-  '#37b24d',
-  '#2f9e44',
-  '#2b8a3e'
+  "#e9ffe5",
+  "#d5ffce",
+  "#aaff9c",
+  "#7dff66",
+  "#58ff39",
+  "#40ff1f",
+  "#32ff0f",
+  "#24f000",
+  "#15ca00",
+  "#00ae00"
 ];
 
 export const theme = createTheme({
@@ -64,6 +66,18 @@ export const theme = createTheme({
       defaultProps: {
         radius: 'md',
         withBorder: true,
+      },
+    },
+    Switch: {
+      defaultProps: {
+        color: '#7fcf00',
+        size: 'sm',
+      },
+    },
+    Checkbox: {
+      defaultProps: {
+        color: '#7fcf00',
+        size: 'sm',
       },
     },
     Paper: {

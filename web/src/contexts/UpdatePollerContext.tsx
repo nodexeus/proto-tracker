@@ -4,13 +4,22 @@
 
 import React, { createContext, useContext, useRef, useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UpdatePollerService, type PollResult, type PollingStatus, type DetectedUpdate } from '../services/updatePoller';
-import { ClientService } from '../services/clients';
+import { type PollResult, type DetectedUpdate } from '../services/updatePoller';
 import { ProtocolService } from '../services/protocols';
 import { AdminService } from '../services/admin';
 import { useAuth } from '../hooks/useAuth';
 import { getApiConfig } from '../utils';
 import type { Client } from '../types/client';
+
+// Define a custom status type for server-side poller
+interface ServerPollerStatus {
+  isRunning: boolean;
+  databaseEnabled: boolean;
+  taskAlive: boolean;
+  lastRun: Date | undefined;
+  nextRun: Date | undefined;
+  pollingInterval: number;
+}
 
 interface UpdatePollerContextType {
   // Service control
@@ -20,7 +29,7 @@ interface UpdatePollerContextType {
   pollNow: () => Promise<void>;
   
   // Status and data
-  status: PollingStatus | null;
+  status: ServerPollerStatus | null;
   recentResults: PollResult[];
   
   // Configuration
@@ -51,64 +60,17 @@ export function UpdatePollerProvider({ children }: UpdatePollerProviderProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Use refs to maintain service instance across renders
-  const pollerServiceRef = useRef<UpdatePollerService | null>(null);
-  const clientsRef = useRef<Client[]>([]);
+  // Use refs for mutation access
   const saveUpdateMutationRef = useRef<any>(null);
   
   // Local state for React updates
   const [isRunning, setIsRunning] = useState(false);
-  const [recentResults, setRecentResults] = useState<PollResult[]>([]);
+  const [recentResults] = useState<PollResult[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const [githubApiKey, setGithubApiKey] = useState<string>('');
   const [pollingIntervalMinutes, setPollingIntervalMinutes] = useState(5);
 
   const apiConfig = getApiConfig(user?.apiKey);
-
-  // Helper function to set up service overrides
-  const setupServiceOverrides = useCallback((service: UpdatePollerService) => {
-    service['getClientsToPolll'] = async () => {
-      return clientsRef.current.filter(client => client.github_url);
-    };
-
-    service['saveUpdates'] = async (updates: DetectedUpdate[]) => {
-      console.log(`💾 Global poller: Saving ${updates.length} updates`);
-      const currentSaveUpdateMutation = saveUpdateMutationRef.current;
-      
-      if (currentSaveUpdateMutation) {
-        for (const update of updates) {
-          try {
-            console.log(`💾 Saving update: ${update.protocolUpdate.tag}`);
-            await currentSaveUpdateMutation.mutateAsync({ update });
-            console.log(`✅ Successfully saved update: ${update.protocolUpdate.tag}`);
-          } catch (error) {
-            console.error('❌ Failed to save update:', error);
-          }
-        }
-      } else {
-        console.warn('⚠️ No saveUpdateMutation available for background saving');
-      }
-    };
-
-    // Override the runPollingCycle to update database timing
-    const originalRunPollingCycle = service['runPollingCycle'].bind(service);
-    service['runPollingCycle'] = async () => {
-      console.log('🔄 Starting enhanced polling cycle with database timing');
-      
-      // Update last poll time in database at start of cycle
-      try {
-        const adminService = new AdminService(apiConfig);
-        await adminService.updateGitHubConfig({ last_poll_time: new Date().toISOString() });
-        console.log('💾 Updated last poll time in database');
-        queryClient.invalidateQueries({ queryKey: ['github-config'] });
-      } catch (error) {
-        console.error('Failed to update poll time in database:', error);
-      }
-      
-      // Run the original polling cycle
-      await originalRunPollingCycle();
-    };
-  }, [apiConfig, queryClient]);
 
   // Fetch GitHub configuration from database
   const { data: githubConfig } = useQuery({
@@ -133,64 +95,8 @@ export function UpdatePollerProvider({ children }: UpdatePollerProviderProps) {
     if (githubConfig?.poller_enabled !== undefined) {
       console.log(`🔄 Loaded poller state from database: ${githubConfig.poller_enabled ? 'enabled' : 'disabled'}`);
       setIsRunning(githubConfig.poller_enabled);
-      
-      // Auto-sync the service state - every browser session should run if database says enabled
-      if (pollerServiceRef.current && githubApiKey) {
-        if (githubConfig.poller_enabled && !pollerServiceRef.current['isRunning']) {
-          console.log('🚀 Auto-starting poller service to match database state');
-          setupServiceOverrides(pollerServiceRef.current);
-          pollerServiceRef.current.start();
-        } else if (!githubConfig.poller_enabled && pollerServiceRef.current['isRunning']) {
-          console.log('🛑 Auto-stopping poller service to match database state');
-          pollerServiceRef.current.stop();
-        }
-      }
     }
-  }, [githubConfig, githubApiKey, setupServiceOverrides]);
-
-  // Initialize poller service once
-  useEffect(() => {
-    if (!pollerServiceRef.current) {
-      console.log('🏗️ Initializing global UpdatePollerService');
-      pollerServiceRef.current = new UpdatePollerService(githubApiKey, pollingIntervalMinutes);
-      
-      // Sync initial state from service
-      const serviceIsRunning = pollerServiceRef.current['isRunning'] || false;
-      setIsRunning(serviceIsRunning);
-      
-      console.log(`📊 Global poller initialized - Running: ${serviceIsRunning}`);
-    }
-  }, []);
-
-  // Periodically sync running state with service (in case they get out of sync)
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      if (pollerServiceRef.current) {
-        const serviceIsRunning = pollerServiceRef.current['isRunning'] || false;
-        if (serviceIsRunning !== isRunning) {
-          console.log(`🔄 Syncing poller state: ${isRunning} → ${serviceIsRunning}`);
-          setIsRunning(serviceIsRunning);
-        }
-      }
-    }, 10000); // Check every 10 seconds
-
-    return () => clearInterval(syncInterval);
-  }, [isRunning]);
-
-  // Get all clients for polling
-  const { data: clients = [] } = useQuery({
-    queryKey: ['clients'],
-    queryFn: async () => {
-      const clientService = new ClientService(apiConfig);
-      return clientService.getClients();
-    },
-    enabled: !!user?.apiKey,
-  });
-
-  // Update clients ref when data changes
-  useEffect(() => {
-    clientsRef.current = clients;
-  }, [clients]);
+  }, [githubConfig]);
 
   // Mutation for saving updates
   const saveUpdateMutation = useMutation({
@@ -210,177 +116,127 @@ export function UpdatePollerProvider({ children }: UpdatePollerProviderProps) {
     saveUpdateMutationRef.current = saveUpdateMutation;
   }, [saveUpdateMutation]);
 
-  // Get current status with polling - now using database timing
+  // Get current status from server-side poller
   const { data: status } = useQuery({
     queryKey: ['updatePoller', 'status'],
-    queryFn: () => {
-      if (!pollerServiceRef.current || !githubConfig) return null;
+    queryFn: async () => {
+      if (!githubConfig) return null;
       
-      const serviceStatus = pollerServiceRef.current.getStatus();
-      
-      // Override with database timing if available
-      const lastRun = githubConfig.last_poll_time ? new Date(githubConfig.last_poll_time) : undefined;
-      let nextRun: Date | undefined = undefined;
-      
-      if (githubConfig.poller_enabled && lastRun && githubConfig.polling_interval_minutes) {
-        const nextRunTime = lastRun.getTime() + (githubConfig.polling_interval_minutes * 60 * 1000);
-        nextRun = new Date(nextRunTime);
+      try {
+        const adminService = new AdminService(apiConfig);
+        const serverStatus = await adminService.getBackgroundPollerStatus();
+        
+        // Calculate next run time
+        const lastRun = serverStatus.last_poll_time ? new Date(serverStatus.last_poll_time) : undefined;
+        let nextRun: Date | undefined = undefined;
+        
+        if (serverStatus.is_running && lastRun && serverStatus.polling_interval_minutes) {
+          const nextRunTime = lastRun.getTime() + (serverStatus.polling_interval_minutes * 60 * 1000);
+          nextRun = new Date(nextRunTime);
+        }
+        
+        return {
+          isRunning: serverStatus.is_running,
+          databaseEnabled: serverStatus.database_enabled,
+          taskAlive: serverStatus.task_alive,
+          lastRun,
+          nextRun,
+          pollingInterval: serverStatus.polling_interval_minutes,
+        };
+      } catch (error) {
+        console.error('Failed to get server-side poller status:', error);
+        return null;
       }
-      
-      return {
-        ...serviceStatus,
-        isRunning: githubConfig.poller_enabled,
-        lastRun,
-        nextRun,
-      };
     },
-    refetchInterval: 5000, // Poll status every 5 seconds
-    enabled: !!pollerServiceRef.current && !!githubConfig,
+    // No polling - status only fetched on mount and after user actions
+    enabled: !!githubConfig && !!user?.apiKey,
   });
 
-  // Update GitHub API key when changed
-  useEffect(() => {
-    if (pollerServiceRef.current && githubApiKey) {
-      console.log('🔑 Updating GitHub API key in global poller');
-      pollerServiceRef.current.setGitHubApiKey(githubApiKey);
-    }
-  }, [githubApiKey]);
-
-  // Update polling interval when changed
-  useEffect(() => {
-    if (pollerServiceRef.current && pollingIntervalMinutes !== undefined) {
-      console.log(`🔧 Updating global poller interval to ${pollingIntervalMinutes} minutes`);
-      pollerServiceRef.current.setPollingInterval(pollingIntervalMinutes);
-    }
-  }, [pollingIntervalMinutes]);
+  // Note: GitHub API key and polling interval are now managed server-side
 
   const start = useCallback(async () => {
-    if (!pollerServiceRef.current || isRunning) return;
+    if (isRunning) return;
 
-    const currentClients = clientsRef.current;
-    const activeClients = currentClients.filter(client => client.github_url);
-    
-    console.log(`🚀 Starting global GitHub poller with ${currentClients.length} total clients, ${activeClients.length} active clients`);
-    activeClients.forEach(client => {
-      console.log(`  ✅ Active client: ${client.name} (${client.github_url})`);
-    });
-
-    // Set up service overrides
-    setupServiceOverrides(pollerServiceRef.current);
-
-    pollerServiceRef.current.start();
+    console.log('🚀 Starting server-side background poller');
     setIsRunning(true);
     
-    // Save state to database
     try {
       const adminService = new AdminService(apiConfig);
-      await adminService.updateGitHubConfig({ poller_enabled: true });
-      console.log('💾 Saved poller enabled state to database');
+      const result = await adminService.startBackgroundPoller();
+      console.log('✅ Server-side poller started:', result.message);
       queryClient.invalidateQueries({ queryKey: ['github-config'] });
+      queryClient.invalidateQueries({ queryKey: ['updatePoller', 'status'] });
     } catch (error) {
-      console.error('Failed to save poller state to database:', error);
+      console.error('Failed to start server-side poller:', error);
+      setIsRunning(false);
+      throw error;
     }
-  }, [isRunning, setupServiceOverrides, apiConfig, queryClient]);
+  }, [isRunning, apiConfig, queryClient]);
 
   const stop = useCallback(async () => {
-    if (!pollerServiceRef.current || !isRunning) return;
+    if (!isRunning) return;
     
-    console.log('🛑 Stopping global GitHub poller');
-    pollerServiceRef.current.stop();
+    console.log('🛑 Stopping server-side background poller');
     setIsRunning(false);
     
-    // Save state to database
     try {
       const adminService = new AdminService(apiConfig);
-      await adminService.updateGitHubConfig({ poller_enabled: false });
-      console.log('💾 Saved poller disabled state to database');
+      const result = await adminService.stopBackgroundPoller();
+      console.log('✅ Server-side poller stopped:', result.message);
       queryClient.invalidateQueries({ queryKey: ['github-config'] });
+      queryClient.invalidateQueries({ queryKey: ['updatePoller', 'status'] });
     } catch (error) {
-      console.error('Failed to save poller state to database:', error);
+      console.error('Failed to stop server-side poller:', error);
+      setIsRunning(true);
+      throw error;
     }
   }, [isRunning, apiConfig, queryClient]);
 
   const pollNow = useCallback(async () => {
-    if (!pollerServiceRef.current || isPolling) return;
+    if (isPolling) return;
     
     setIsPolling(true);
     try {
-      const currentClients = clientsRef.current;
-      const currentSaveUpdateMutation = saveUpdateMutationRef.current;
+      console.log('🔍 Manual poll: Starting server-side poll...');
       
-      console.log('🔍 Manual poll: Starting...');
-      console.log('📊 Total clients available:', currentClients.length);
+      const adminService = new AdminService(apiConfig);
+      const result = await adminService.pollNowBackground();
       
-      const results: PollResult[] = [];
-      const activeClients = currentClients.filter(client => client.github_url);
+      console.log('✅ Server-side poll completed:', {
+        status: result.status,
+        clientsPolled: result.clients_polled,
+        updatesCreated: result.updates_created,
+        errors: result.errors?.length || 0
+      });
       
-      console.log('✅ Active clients with GitHub URLs:', activeClients.length);
-      
-      if (activeClients.length === 0) {
-        console.warn('⚠️ No clients with GitHub URLs found. Please configure client GitHub URLs first.');
+      if (result.errors && result.errors.length > 0) {
+        console.warn('⚠️ Poll errors:', result.errors);
       }
       
-      for (const client of activeClients) {
-        try {
-          console.log(`🔄 Polling client: ${client.name} (${client.github_url})`);
-          const result = await pollerServiceRef.current.pollClient(client);
-          results.push(result);
-          
-          console.log(`📈 Found ${result.updates.length} updates for ${client.name}`);
-          if (result.errors.length > 0) {
-            console.warn(`⚠️ Errors for ${client.name}:`, result.errors);
-          }
-          
-          // Save any detected updates
-          for (const update of result.updates) {
-            try {
-              console.log(`💾 Saving update: ${update.protocolUpdate.tag} for ${client.name}`);
-              await currentSaveUpdateMutation.mutateAsync({ update });
-              console.log(`✅ Successfully saved update: ${update.protocolUpdate.tag}`);
-            } catch (error) {
-              console.error('❌ Failed to save update:', error);
-            }
-          }
-        } catch (error) {
-          console.error(`❌ Failed to poll client ${client.id}:`, error);
-        }
-      }
+      // Refresh the queries to show updated data
+      queryClient.invalidateQueries({ queryKey: ['github-config'] });
+      queryClient.invalidateQueries({ queryKey: ['protocol-updates'] });
+      queryClient.invalidateQueries({ queryKey: ['protocolUpdates'] });
       
-      setRecentResults(results);
-      
-      // Update last poll time in database for manual polls too
-      try {
-        const adminService = new AdminService(apiConfig);
-        await adminService.updateGitHubConfig({ last_poll_time: new Date().toISOString() });
-        console.log('💾 Updated last poll time in database after manual poll');
-        queryClient.invalidateQueries({ queryKey: ['github-config'] });
-      } catch (error) {
-        console.error('Failed to update poll time in database:', error);
-      }
-      
-      const totalUpdates = results.reduce((sum, result) => sum + result.updates.length, 0);
-      console.log(`🎉 Poll completed! Found ${totalUpdates} total updates across ${results.length} clients`);
+      console.log(`🎉 Server-side poll completed! Created ${result.updates_created || 0} updates across ${result.clients_polled || 0} clients`);
+    } catch (error) {
+      console.error('Failed to run server-side poll:', error);
+      throw error;
     } finally {
       setIsPolling(false);
     }
-  }, [isPolling]);
+  }, [isPolling, apiConfig, queryClient]);
 
   const setGitHubApiKey = useCallback((key: string) => {
-    console.log('🔑 Setting GitHub API key in global context');
+    console.log('🔑 Setting GitHub API key (now managed server-side)');
     setGithubApiKey(key);
-    if (pollerServiceRef.current) {
-      pollerServiceRef.current.setGitHubApiKey(key);
-    }
   }, []);
 
   const setPollingInterval = useCallback(async (minutes: number) => {
-    console.log(`🔧 Setting polling interval to ${minutes} minutes in global context`);
+    console.log(`🔧 Setting polling interval to ${minutes} minutes (server-side)`);
     setPollingIntervalMinutes(minutes);
-    if (pollerServiceRef.current) {
-      pollerServiceRef.current.setPollingInterval(minutes);
-    }
     
-    // Save to database
+    // Save to database - server-side poller will pick up the change automatically
     try {
       const adminService = new AdminService(apiConfig);
       await adminService.updateGitHubConfig({ polling_interval_minutes: minutes });
@@ -394,17 +250,14 @@ export function UpdatePollerProvider({ children }: UpdatePollerProviderProps) {
   }, [apiConfig, queryClient]);
 
   const resetPollTimestamps = useCallback(() => {
-    if (pollerServiceRef.current) {
-      pollerServiceRef.current.resetPollTimestamps();
-    }
+    console.log('🔄 Reset poll timestamps (server-side polling manages timestamps automatically)');
   }, []);
 
   const pollClient = useCallback(async (client: Client): Promise<PollResult> => {
-    if (!pollerServiceRef.current) {
-      throw new Error('Poller service not initialized');
-    }
-    return pollerServiceRef.current.pollClient(client);
-  }, []);
+    // This method is kept for backward compatibility but now triggers a full server-side poll
+    await pollNow();
+    return { client, updates: [], errors: [], lastPolled: new Date() };
+  }, [pollNow]);
 
   const saveUpdate = useCallback(async (update: DetectedUpdate) => {
     await saveUpdateMutationRef.current.mutateAsync({ update });

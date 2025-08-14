@@ -23,6 +23,7 @@ import {
   Textarea,
   TextInput,
   Checkbox,
+  Table,
 } from '@mantine/core';
 import {
   IconExternalLink,
@@ -194,7 +195,7 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
       notifications.show({
         title: 'Success',
         message: 'Update details saved successfully',
-        color: 'green',
+        color: '#7fcf00',
       });
       
       setEditMode(false);
@@ -218,7 +219,7 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
     if (currentUpdate.is_draft) return { color: 'gray', children: 'Draft' };
     if (currentUpdate.is_prerelease) return { color: 'orange', children: 'Pre-release' };
     if (currentUpdate.hard_fork) return { color: 'red', children: 'Hard Fork' };
-    return { color: 'green', children: 'Release' };
+    return { color: '#7fcf00', children: 'Release' };
   };
 
   // Parse markdown content with support for tables and images
@@ -227,23 +228,44 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
     
     let parsed = text;
     
-    // Parse tables first (before other processing)
+    // Parse lists first (before table processing affects line structure)
+    parsed = parsed
+      .replace(/((?:^[\*\-\+]\s+.+$(?:\n|$))+)/gm, (match) => {
+        const items = match.trim().split('\n')
+          .filter(line => line.trim()) // Remove empty lines
+          .map(line => 
+            line.replace(/^[\*\-\+]\s+(.+)$/, '<li style="margin: 4px 0;">$1</li>')
+          ).join('');
+        return `<ul style="margin: 12px 0; padding-left: 24px;">${items}</ul>`;
+      })
+      .replace(/((?:^\d+\.\s+.+$(?:\n|$))+)/gm, (match) => {
+        const items = match.trim().split('\n')
+          .filter(line => line.trim()) // Remove empty lines
+          .map(line => 
+            line.replace(/^\d+\.\s+(.+)$/, '<li style="margin: 4px 0;">$1</li>')
+          ).join('');
+        return `<ol style="margin: 12px 0; padding-left: 24px;">${items}</ol>`;
+      });
+    
+    // Parse tables after lists
     parsed = parseMarkdownTables(parsed);
     
     return parsed
       // Images - must come before links
       .replace(/!\[([^\]]*)\]\(([^)]+)\)/gim, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />')
-      // Links
+      // Markdown-style links
       .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #228be6; text-decoration: none;">$1</a>')
+      // Plain URLs (must come after markdown links to avoid conflicts)
+      .replace(/(^|[\s\n])(https?:\/\/[^\s<]+)/gim, '$1<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #228be6; text-decoration: none;">$2</a>')
       // Headers
-      .replace(/^#### (.*$)/gim, '<h4 style="margin: 16px 0 8px 0; color: #343a40; font-size: 1.1em;">$1</h4>')
-      .replace(/^### (.*$)/gim, '<h3 style="margin: 16px 0 8px 0; color: #343a40; font-size: 1.2em;">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 style="margin: 20px 0 12px 0; color: #343a40; font-size: 1.4em;">$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1 style="margin: 24px 0 16px 0; color: #343a40; font-size: 1.6em;">$1</h1>')
+      .replace(/^#### (.*$)/gim, '<h4 style="margin: 16px 0 8px 0; color: #7fcf00; font-size: 1.1em;">$1</h4>')
+      .replace(/^### (.*$)/gim, '<h3 style="margin: 16px 0 8px 0; color: #7fcf00; font-size: 1.2em;">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 style="margin: 20px 0 12px 0; color: #7fcf00; font-size: 1.4em;">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 style="margin: 24px 0 16px 0; color: #7fcf00; font-size: 1.6em;">$1</h1>')
       // Code blocks - triple backticks
-      .replace(/```([\s\S]*?)```/gim, '<pre style="background: #f8f9fa; padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid #e9ecef; margin: 8px 0;"><code>$1</code></pre>')
+      .replace(/```([\s\S]*?)```/gim, '<pre style="background: #000000; padding: 12px; border-radius: 4px; overflow-x: auto; border: 1px solid #e9ecef; margin: 8px 0;"><code>$1</code></pre>')
       // Inline code
-      .replace(/`([^`]+)`/gim, '<code style="background: #f8f9fa; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">$1</code>')
+      .replace(/`([^`]+)`/gim, '<code style="background: #000000; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">$1</code>')
       // Bold
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
       .replace(/__(.*?)__/gim, '<strong>$1</strong>')
@@ -255,68 +277,111 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
       // Horizontal rules
       .replace(/^---$/gim, '<hr style="border: none; border-top: 1px solid #e9ecef; margin: 16px 0;" />')
       .replace(/^___$/gim, '<hr style="border: none; border-top: 1px solid #e9ecef; margin: 16px 0;" />')
-      // Parse lists (do this before line breaks)
-      .replace(/((?:^\s*[\*\-\+]\s+.+$\n?)+)/gm, (match) => {
-        const items = match.trim().split('\n').map(line => 
-          line.replace(/^\s*[\*\-\+]\s+(.+)$/, '<li style="margin: 4px 0;">$1</li>')
-        ).join('');
-        return `<ul style="margin: 12px 0; padding-left: 24px;">${items}</ul>`;
-      })
-      .replace(/((?:^\s*\d+\.\s+.+$\n?)+)/gm, (match) => {
-        const items = match.trim().split('\n').map(line => 
-          line.replace(/^\s*\d+\.\s+(.+)$/, '<li style="margin: 4px 0;">$1</li>')
-        ).join('');
-        return `<ol style="margin: 12px 0; padding-left: 24px;">${items}</ol>`;
-      })
-      // Line breaks
-      .replace(/\n/gim, '<br />');
+      // Line breaks (but not inside HTML elements)
+      .replace(/\n(?!<)/gim, '<br />');
   };
 
   // Parse markdown tables
   const parseMarkdownTables = (text: string): string => {
-    const tableRegex = /(\|[^\n]+\|\n)+/gm;
+    // Split text into lines for processing
+    const lines = text.split('\n');
+    const processedLines: string[] = [];
+    let i = 0;
     
-    return text.replace(tableRegex, (match) => {
-      const lines = match.trim().split('\n');
-      if (lines.length < 2) return match;
+    while (i < lines.length) {
+      const line = lines[i];
       
-      const headers = lines[0].split('|').map(cell => cell.trim()).filter(cell => cell);
-      const separator = lines[1];
-      const rows = lines.slice(2);
-      
-      // Check if second line is a separator (contains dashes)
-      if (!separator.includes('-')) return match;
-      
-      let tableHtml = '<table style="border-collapse: collapse; width: 100%; margin: 16px 0; border: 1px solid #e9ecef;">';
-      
-      // Headers
-      if (headers.length > 0) {
-        tableHtml += '<thead><tr>';
-        headers.forEach(header => {
-          tableHtml += `<th style="border: 1px solid #e9ecef; padding: 8px 12px; background: #f8f9fa; font-weight: 600; text-align: left;">${header}</th>`;
-        });
-        tableHtml += '</tr></thead>';
-      }
-      
-      // Body rows
-      if (rows.length > 0) {
-        tableHtml += '<tbody>';
-        rows.forEach(row => {
-          const cells = row.split('|').map(cell => cell.trim()).filter(cell => cell);
-          if (cells.length > 0) {
-            tableHtml += '<tr>';
-            cells.forEach(cell => {
-              tableHtml += `<td style="border: 1px solid #e9ecef; padding: 8px 12px;">${cell}</td>`;
-            });
-            tableHtml += '</tr>';
+      // Check if this line starts a table (contains pipes)
+      if (line.trim().includes('|') && line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        // Look for the table header and separator
+        const headerLine = lines[i];
+        const separatorLine = i + 1 < lines.length ? lines[i + 1] : '';
+        
+        // Check if next line is a separator (contains dashes and pipes)
+        if (separatorLine.includes('-') && separatorLine.includes('|')) {
+          // This is a table, collect all table lines
+          const tableLines = [headerLine, separatorLine];
+          let j = i + 2;
+          
+          // Collect remaining table rows
+          while (j < lines.length && lines[j].trim().includes('|') && 
+                 lines[j].trim().startsWith('|') && lines[j].trim().endsWith('|')) {
+            tableLines.push(lines[j]);
+            j++;
           }
-        });
-        tableHtml += '</tbody>';
+          
+          // Parse the complete table
+          const tableHtml = parseTableLines(tableLines);
+          processedLines.push(tableHtml);
+          
+          // Skip the processed table lines
+          i = j;
+        } else {
+          // Not a table, keep the line as is
+          processedLines.push(line);
+          i++;
+        }
+      } else {
+        // Not a table line, keep as is
+        processedLines.push(line);
+        i++;
       }
-      
-      tableHtml += '</table>';
-      return tableHtml;
+    }
+    
+    return processedLines.join('\n');
+  };
+  
+  // Helper function to parse table lines into HTML
+  const parseTableLines = (tableLines: string[]): string => {
+    if (tableLines.length < 2) return tableLines.join('\n');
+    
+    // Parse header row
+    const headerCells = tableLines[0].split('|')
+      .map(cell => cell.trim())
+      .filter(cell => cell !== ''); // Remove empty cells from leading/trailing pipes
+    
+    if (headerCells.length === 0) return tableLines.join('\n');
+    
+    // Parse data rows (skip header and separator)
+    const dataRows = tableLines.slice(2);
+    
+    // Use Mantine Table classes for consistent styling
+    let tableHtml = '<table class="m-Table-table" style="margin: 16px 0;">';
+    
+    // Create header
+    tableHtml += '<thead class="m-Table-thead"><tr class="m-Table-tr">';
+    headerCells.forEach(header => {
+      tableHtml += `<th class="m-Table-th">${header}</th>`;
     });
+    tableHtml += '</tr></thead>';
+    
+    // Create body rows
+    if (dataRows.length > 0) {
+      tableHtml += '<tbody class="m-Table-tbody">';
+      dataRows.forEach(row => {
+        const cells = row.split('|')
+          .map(cell => cell.trim())
+          .filter(cell => cell !== '') // Remove empty cells from leading/trailing pipes
+          .slice(0, headerCells.length); // Don't exceed header count
+        
+        if (cells.length > 0) {
+          tableHtml += '<tr class="m-Table-tr">';
+          // Add actual cells
+          cells.forEach(cell => {
+            tableHtml += `<td class="m-Table-td">${cell || '&nbsp;'}</td>`;
+          });
+          // Fill remaining cells if row has fewer cells than headers
+          for (let i = cells.length; i < headerCells.length; i++) {
+            tableHtml += `<td class="m-Table-td">&nbsp;</td>`;
+          }
+          tableHtml += '</tr>';
+        }
+      });
+      tableHtml += '</tbody>';
+    }
+    
+    tableHtml += '</table>';
+    return tableHtml;
   };
 
   // Return early if no update data
@@ -352,7 +417,7 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
               <Tooltip label="Save changes">
                 <ActionIcon 
                   variant="filled" 
-                  color="green"
+                  color="#7fcf00"
                   onClick={handleSave}
                   loading={updateMutation.isPending}
                 >

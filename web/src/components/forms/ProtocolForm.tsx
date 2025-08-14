@@ -165,7 +165,7 @@ export function ProtocolForm({
       notifications.show({
         title: 'Logo Uploaded',
         message: 'Logo has been uploaded successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     };
@@ -236,7 +236,7 @@ export function ProtocolForm({
       notifications.show({
         title: mode === 'create' ? 'Protocol Created' : 'Protocol Updated',
         message: `Protocol has been ${mode === 'create' ? 'created' : 'updated'} successfully`,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       

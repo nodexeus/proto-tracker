@@ -157,7 +157,7 @@ export function Debug() {
 
             {testResult && (
               <Alert
-                color={testResult.success ? 'green' : 'red'}
+                color={testResult.success ? '#7fcf00' : 'red'}
                 title={testResult.message}
               >
                 <Code block>

@@ -76,7 +76,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       notifications.show({
         title: 'Login Successful',
         message: `Welcome back, ${authUser.first_name || authUser.email}!`,
-        color: 'green',
+        color: '#7fcf00',
       });
     } catch (error) {
       console.error('Login failed:', error);

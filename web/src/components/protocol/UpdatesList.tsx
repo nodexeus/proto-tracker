@@ -46,7 +46,7 @@ function UpdateRow({ update }: UpdateRowProps) {
     if (update.is_draft) return { color: 'gray', children: 'Draft' };
     if (update.is_prerelease) return { color: 'yellow', children: 'Pre-release' };
     if (update.hard_fork) return { color: 'red', children: 'Hard Fork' };
-    return { color: 'green', children: 'Release' };
+    return { color: '#7fcf00', children: 'Release' };
   };
 
   return (

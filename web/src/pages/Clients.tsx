@@ -108,7 +108,7 @@ function ClientForm({ opened, onClose, client, mode }: ClientFormProps) {
         notifications.show({
           title: 'Success',
           message: 'Client created successfully',
-          color: 'green',
+          color: '#7fcf00',
         });
       } else if (client) {
         await updateClientMutation.mutateAsync({
@@ -118,7 +118,7 @@ function ClientForm({ opened, onClose, client, mode }: ClientFormProps) {
         notifications.show({
           title: 'Success',
           message: 'Client updated successfully',
-          color: 'green',
+          color: '#7fcf00',
         });
       }
       onClose();
@@ -234,7 +234,7 @@ export function Clients() {
         notifications.show({
           title: 'Success',
           message: 'Client deleted successfully',
-          color: 'green',
+          color: '#7fcf00',
         });
       } catch (error) {
         notifications.show({

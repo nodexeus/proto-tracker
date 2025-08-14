@@ -207,7 +207,7 @@ export function AdminUserManagement() {
       notifications.show({
         title: 'Success',
         message: selectedUser ? 'User updated successfully' : 'User created successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       handleCloseForm();
@@ -233,7 +233,7 @@ export function AdminUserManagement() {
       notifications.show({
         title: 'Success',
         message: 'User deleted successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -258,7 +258,7 @@ export function AdminUserManagement() {
       notifications.show({
         title: 'Success',
         message: 'User status updated successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -464,7 +464,7 @@ export function AdminUserManagement() {
 
                   <Table.Td>
                     <Badge
-                      color={user.isActive ? 'green' : 'gray'}
+                      color={user.isActive ? '#7fcf00' : 'gray'}
                       variant={user.isActive ? 'light' : 'outline'}
                     >
                       {user.isActive ? 'Active' : 'Inactive'}
@@ -499,7 +499,7 @@ export function AdminUserManagement() {
                         <ActionIcon
                           variant="subtle"
                           size="sm"
-                          color={user.isActive ? 'orange' : 'green'}
+                          color={user.isActive ? 'orange' : '#7fcf00'}
                           onClick={() => handleToggleStatus(user)}
                           disabled={user.id === currentUser?.id}
                         >

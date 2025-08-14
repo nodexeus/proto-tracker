@@ -8,6 +8,7 @@ import { notifications } from '@mantine/notifications';
 import { IconCheck, IconAlertCircle } from '@tabler/icons-react';
 import { ProtocolService } from '../services/protocols';
 import { useAuth } from './useAuth';
+import { protocolKeys } from './useProtocols';
 import type { Protocol, ProtocolCreate, ProtocolUpdateData } from '../types';
 import { SUCCESS_MESSAGES, getApiConfig } from '../utils';
 
@@ -32,11 +33,12 @@ export function useProtocolForm(options: UseProtocolFormOptions = {}) {
       return protocolService.createProtocol(data);
     },
     onSuccess: (protocol) => {
-      queryClient.invalidateQueries({ queryKey: ['protocols'] });
+      queryClient.invalidateQueries({ queryKey: protocolKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       notifications.show({
         title: 'Success',
         message: SUCCESS_MESSAGES.PROTOCOL_CREATED,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       options.onSuccess?.(protocol);
@@ -59,12 +61,13 @@ export function useProtocolForm(options: UseProtocolFormOptions = {}) {
       return protocolService.updateProtocol(data.id, data);
     },
     onSuccess: (protocol) => {
-      queryClient.invalidateQueries({ queryKey: ['protocols'] });
-      queryClient.invalidateQueries({ queryKey: ['protocol', protocol.id] });
+      queryClient.invalidateQueries({ queryKey: protocolKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: protocolKeys.detail(protocol.id) });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       notifications.show({
         title: 'Success',
         message: SUCCESS_MESSAGES.PROTOCOL_UPDATED,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
       options.onSuccess?.(protocol);
@@ -87,11 +90,12 @@ export function useProtocolForm(options: UseProtocolFormOptions = {}) {
       return protocolService.deleteProtocol(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['protocols'] });
+      queryClient.invalidateQueries({ queryKey: protocolKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       notifications.show({
         title: 'Success',
         message: SUCCESS_MESSAGES.PROTOCOL_DELETED,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },

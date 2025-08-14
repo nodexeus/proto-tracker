@@ -100,7 +100,7 @@ function ScanResults({ results, onClose }: ScanResultsProps) {
     <Alert
       icon={<IconCheck size={16} />}
       title="Scan Completed"
-      color="green"
+      color="#7fcf00"
       withCloseButton
       onClose={onClose}
     >
@@ -109,7 +109,7 @@ function ScanResults({ results, onClose }: ScanResultsProps) {
         
         {results.new_snapshots_found !== undefined && (
           <Group gap="md">
-            <Badge color="green" variant="light">
+            <Badge color="#7fcf00" variant="light">
               {results.new_snapshots_found} new snapshots
             </Badge>
             
@@ -154,7 +154,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
       notifications.show({
         title: 'Scan Completed',
         message: result.message,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -282,7 +282,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
               
               <Group justify="space-between">
                 <Text size="xs" c="dimmed">Total Files</Text>
-                <Badge variant="light" color="green">
+                <Badge variant="light" color="#7fcf00">
                   <NumberFormatter value={totalFiles} />
                 </Badge>
               </Group>
@@ -339,7 +339,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
                             <Badge size="xs" variant="light" color="blue">
                               {formatBytes(snapshot.total_size)}
                             </Badge>
-                            <Badge size="xs" variant="light" color="green">
+                            <Badge size="xs" variant="light" color="#7fcf00">
                               {snapshot.file_count.toLocaleString()} files
                             </Badge>
                           </Group>

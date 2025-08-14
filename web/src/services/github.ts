@@ -141,7 +141,7 @@ export class GitHubApiService {
    * Get all releases since a specific date
    */
   async getReleasesSince(owner: string, repo: string, since: Date): Promise<GitHubRelease[]> {
-    const releases = await this.getReleases(owner, repo, 1, 100);
+    const releases = await this.getReleases(owner, repo, 1, 1000);
     console.log(`🗓️ Filtering releases since: ${since.toISOString()}`);
     console.log(`📅 Current date: ${new Date().toISOString()}`);
     

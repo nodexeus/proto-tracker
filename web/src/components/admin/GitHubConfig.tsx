@@ -66,7 +66,7 @@ export function GitHubConfig() {
         notifications.show({
           title: 'Error',
           message: `Failed to fetch GitHub configuration: ${errorMessage}`,
-          color: 'red',
+          color: '#f0000',
         });
       }
     } finally {
@@ -80,7 +80,7 @@ export function GitHubConfig() {
       notifications.show({
         title: 'Validation Error',
         message: 'GitHub API key is required',
-        color: 'red',
+        color: '#f0000',
       });
       return;
     }
@@ -99,7 +99,7 @@ export function GitHubConfig() {
       notifications.show({
         title: 'Success',
         message: 'GitHub API configuration saved successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     } catch (error) {
@@ -107,7 +107,7 @@ export function GitHubConfig() {
       notifications.show({
         title: 'Error',
         message: error instanceof Error ? error.message : 'Failed to save GitHub configuration',
-        color: 'red',
+        color: '#f0000',
         icon: <IconAlertCircle size={16} />,
       });
     } finally {
@@ -142,7 +142,7 @@ export function GitHubConfig() {
 
       <Stack gap="md">
         {error && (
-          <Alert color="red" variant="light">
+          <Alert color="#f0000" variant="light">
             Error: {error}
           </Alert>
         )}

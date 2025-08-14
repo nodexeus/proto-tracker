@@ -177,7 +177,7 @@ export function ProtocolCard({
 
         {/* Recent activity indicator */}
         {!statsLoading && stats && stats.recent_updates > 0 && (
-          <Badge variant="light" color="green" size="xs">
+          <Badge variant="light" color="#7fcf00" size="xs">
             {stats.recent_updates} recent update{stats.recent_updates !== 1 ? 's' : ''}
           </Badge>
         )}

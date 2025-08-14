@@ -255,7 +255,17 @@ export class ProtocolService extends ApiService {
     recent_updates: number;
     recent_hard_forks: number;
     protocols_by_network: Record<string, number>;
-    updates_by_month: Array<{ month: string; updates: number; hard_forks: number }>;
+    updates_by_month: Array<{ 
+      month: string; 
+      updates: number; 
+      hard_forks: number;
+      updates_by_client: Array<{
+        client_name: string;
+        client_id: number;
+        updates: number;
+        hard_forks: number;
+      }>;
+    }>;
   }> {
     // Calculate from available data using existing endpoints
     const [protocols, allUpdates, clients] = await Promise.all([
@@ -291,10 +301,37 @@ export class ProtocolService extends ApiService {
                updateDate.getMonth() === date.getMonth();
       });
       
+      // Group updates by client for this month
+      const clientUpdatesMap = new Map<string, { updates: number; hard_forks: number }>();
+      
+      monthUpdates.forEach(update => {
+        const clientName = update.client || 'Unknown';
+        
+        
+        if (!clientUpdatesMap.has(clientName)) {
+          clientUpdatesMap.set(clientName, { updates: 0, hard_forks: 0 });
+        }
+        
+        const clientData = clientUpdatesMap.get(clientName)!;
+        clientData.updates++;
+        if (update.hard_fork) {
+          clientData.hard_forks++;
+        }
+      });
+      
+      const updatesByClient = Array.from(clientUpdatesMap.entries()).map(([clientName, data]) => ({
+        client_id: clientName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0), // Generate a consistent ID from name
+        client_name: clientName,
+        updates: data.updates,
+        hard_forks: data.hard_forks
+      }));
+      
+      
       updatesByMonth.push({
         month: monthName,
         updates: monthUpdates.length,
-        hard_forks: monthUpdates.filter(update => update.hard_fork).length
+        hard_forks: monthUpdates.filter(update => update.hard_fork).length,
+        updates_by_client: updatesByClient
       });
     }
     

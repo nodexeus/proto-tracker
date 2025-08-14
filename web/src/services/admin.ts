@@ -63,6 +63,23 @@ export interface GitHubConfigUpdate {
   last_poll_time?: string;
 }
 
+export interface BackgroundPollerStatus {
+  is_running: boolean;
+  database_enabled: boolean;
+  last_poll_time: string | null;
+  polling_interval_minutes: number;
+  task_alive: boolean;
+}
+
+export interface BackgroundPollerResult {
+  status: string;
+  message: string;
+  clients_polled?: number;
+  updates_created?: number;
+  errors?: string[];
+  timestamp?: string;
+}
+
 export class AdminService extends ApiService {
   constructor(config: ApiConfig) {
     super(config);
@@ -107,5 +124,22 @@ export class AdminService extends ApiService {
 
   async updateGitHubConfig(config: GitHubConfigUpdate): Promise<GitHubConfig> {
     return this.patch<GitHubConfig>('/admin/github-config', config);
+  }
+
+  // Server-side background poller methods
+  async startBackgroundPoller(): Promise<BackgroundPollerResult> {
+    return this.post<BackgroundPollerResult>('/admin/poller/start');
+  }
+
+  async stopBackgroundPoller(): Promise<BackgroundPollerResult> {
+    return this.post<BackgroundPollerResult>('/admin/poller/stop');
+  }
+
+  async getBackgroundPollerStatus(): Promise<BackgroundPollerStatus> {
+    return this.get<BackgroundPollerStatus>('/admin/poller/status');
+  }
+
+  async pollNowBackground(): Promise<BackgroundPollerResult> {
+    return this.post<BackgroundPollerResult>('/admin/poller/poll-now');
   }
 }

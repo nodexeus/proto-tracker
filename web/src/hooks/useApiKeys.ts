@@ -63,7 +63,7 @@ export function useCreateApiKey() {
       notifications.show({
         title: 'Success',
         message: `API key "${newApiKey.name}" created successfully`,
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {
@@ -95,7 +95,7 @@ export function useDeleteApiKey() {
       notifications.show({
         title: 'Success',
         message: 'API key deleted successfully',
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {

@@ -129,7 +129,7 @@ export function S3StorageConfig() {
       notifications.show({
         title: 'Success',
         message: 'S3 storage configuration saved successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -154,7 +154,7 @@ export function S3StorageConfig() {
         notifications.show({
           title: 'Connection Successful',
           message: result.message,
-          color: 'green',
+          color: '#7fcf00',
           icon: <IconCheck size={16} />,
         });
       } else {
@@ -206,7 +206,7 @@ export function S3StorageConfig() {
       <Card withBorder>
         <Group justify="space-between" align="center">
           <Group>
-            <IconCloud size={24} color={existingConfig ? 'green' : 'gray'} />
+            <IconCloud size={24} color={existingConfig ? '#7fcf00' : 'gray'} />
             <div>
               <Text fw={500}>
                 S3-Compatible Storage {existingConfig ? 'Configured' : 'Not Configured'}
@@ -222,7 +222,7 @@ export function S3StorageConfig() {
           
           <Group>
             {existingConfig && (
-              <Badge color="green" variant="light">
+              <Badge color="#7fcf00" variant="light">
                 Active
               </Badge>
             )}

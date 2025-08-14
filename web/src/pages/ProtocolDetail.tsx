@@ -158,7 +158,7 @@ export function ProtocolDetail() {
                 <Badge variant="light" color="blue">
                   Chain {protocol.chain_id}
                 </Badge>
-                <Badge variant="light" color="green">
+                <Badge variant="light" color="#7fcf00">
                   {protocol.network}
                 </Badge>
               </Group>
@@ -279,7 +279,7 @@ export function ProtocolDetail() {
               <Card withBorder padding="md">
                 <Group justify="space-between" align="center">
                   <Group align="center" gap="sm">
-                    <IconActivity size={20} color={hasBlockError ? 'red' : blockData ? 'green' : 'gray'} />
+                    <IconActivity size={20} color={hasBlockError ? 'red' : blockData ? '#7fcf00' : 'gray'} />
                     <div>
                       <Text fw={500} size="sm">
                         Current Block Number
@@ -344,7 +344,7 @@ export function ProtocolDetail() {
               </Card>
               
               <Card withBorder padding="md" ta="center">
-                <Text size="xl" fw={700} c="green">
+                <Text size="xl" fw={700} c="#7fcf00">
                   {snapshots?.length || 0}
                 </Text>
                 <Text size="sm" c="dimmed">Available Snapshots</Text>

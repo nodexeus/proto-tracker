@@ -123,7 +123,7 @@ export function useCreateProtocol() {
       notifications.show({
         title: 'Success',
         message: `Protocol "${newProtocol.name}" created successfully`,
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {
@@ -158,7 +158,7 @@ export function useUpdateProtocol() {
       notifications.show({
         title: 'Success',
         message: `Protocol "${updatedProtocol.name}" updated successfully`,
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {
@@ -192,7 +192,7 @@ export function useDeleteProtocol() {
       notifications.show({
         title: 'Success',
         message: 'Protocol deleted successfully',
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {
@@ -223,7 +223,7 @@ export function useScanSnapshots() {
       notifications.show({
         title: 'Scan Complete',
         message: result.message || 'Snapshot scan completed successfully',
-        color: 'green',
+        color: '#7fcf00',
       });
     },
     onError: (error: Error) => {

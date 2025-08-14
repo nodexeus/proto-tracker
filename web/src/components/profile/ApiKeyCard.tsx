@@ -20,6 +20,7 @@ import type { ProfileApiKey } from '../../types';
 import { useClipboard } from '../../hooks';
 import { formatDate } from '../../utils/formatters';
 import { DeleteApiKeyModal } from './DeleteApiKeyModal';
+import { ManualCopyModal } from './ManualCopyModal';
 
 interface ApiKeyCardProps {
   apiKey: ProfileApiKey;
@@ -27,7 +28,7 @@ interface ApiKeyCardProps {
 
 export function ApiKeyCard({ apiKey }: ApiKeyCardProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const { copyApiKey, getCopiedState, getCopyIcon, isLoading } = useClipboard();
+  const { copyApiKey, getCopiedState, getCopyIcon, isLoading, manualCopyData, closeManualCopy } = useClipboard();
 
   const handleCopy = async () => {
     await copyApiKey(apiKey.id, apiKey.name);
@@ -46,7 +47,7 @@ export function ApiKeyCard({ apiKey }: ApiKeyCardProps) {
                 {apiKey.name}
               </Text>
               <Badge 
-                color={apiKey.is_active ? 'green' : 'gray'} 
+                color={apiKey.is_active ? '#7fcf00' : 'gray'} 
                 variant="light" 
                 size="sm"
               >
@@ -88,7 +89,7 @@ export function ApiKeyCard({ apiKey }: ApiKeyCardProps) {
             >
               <ActionIcon
                 variant="light"
-                color={isCopied ? 'green' : 'blue'}
+                color={isCopied ? '#7fcf00' : 'blue'}
                 onClick={handleCopy}
                 loading={isLoading}
                 disabled={!apiKey.is_active}
@@ -115,6 +116,15 @@ export function ApiKeyCard({ apiKey }: ApiKeyCardProps) {
         opened={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
       />
+
+      {manualCopyData && (
+        <ManualCopyModal
+          opened={!!manualCopyData}
+          onClose={closeManualCopy}
+          apiKey={manualCopyData.apiKey}
+          keyName={manualCopyData.keyName}
+        />
+      )}
     </>
   );
 }

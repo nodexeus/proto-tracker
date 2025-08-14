@@ -119,8 +119,9 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: (data: ClientCreate) => clientService.createClient(data),
     onSuccess: () => {
-      // Invalidate and refetch clients list
+      // Invalidate and refetch clients list and dashboard stats
       queryClient.invalidateQueries({ queryKey: clientKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
   });
 }
@@ -138,9 +139,10 @@ export function useUpdateClient() {
     mutationFn: ({ id, data }: { id: number; data: ClientUpdate }) => 
       clientService.updateClient(id, data),
     onSuccess: (_, { id }) => {
-      // Invalidate and refetch clients list and specific client
+      // Invalidate and refetch clients list, specific client, and dashboard stats
       queryClient.invalidateQueries({ queryKey: clientKeys.all });
       queryClient.invalidateQueries({ queryKey: clientKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
   });
 }
@@ -157,8 +159,9 @@ export function useDeleteClient() {
   return useMutation({
     mutationFn: (id: number) => clientService.deleteClient(id),
     onSuccess: () => {
-      // Invalidate and refetch clients list
+      // Invalidate and refetch clients list and dashboard stats
       queryClient.invalidateQueries({ queryKey: clientKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
   });
 }

@@ -35,6 +35,7 @@ import {
   IconBell,
   IconCloud,
 } from '@tabler/icons-react';
+import { NotificationSettings } from './NotificationSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiService } from '../../services/api';
 import { getApiConfig } from '../../utils';
@@ -47,7 +48,6 @@ interface SystemConfig {
   session_timeout_hours: number;
   auto_scan_enabled: boolean;
   auto_scan_interval_hours: number;
-  notification_email?: string;
   maintenance_mode: boolean;
   rate_limit_requests_per_minute: number;
   log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
@@ -62,7 +62,6 @@ interface SystemConfigFormData {
   session_timeout_hours: number;
   auto_scan_enabled: boolean;
   auto_scan_interval_hours: number;
-  notification_email: string;
   maintenance_mode: boolean;
   rate_limit_requests_per_minute: number;
   log_level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
@@ -114,7 +113,6 @@ export function SystemSettings() {
       session_timeout_hours: 24,
       auto_scan_enabled: true,
       auto_scan_interval_hours: 6,
-      notification_email: '',
       maintenance_mode: false,
       rate_limit_requests_per_minute: 60,
       log_level: 'INFO',
@@ -153,7 +151,6 @@ export function SystemSettings() {
         session_timeout_hours: systemConfig.session_timeout_hours,
         auto_scan_enabled: systemConfig.auto_scan_enabled,
         auto_scan_interval_hours: systemConfig.auto_scan_interval_hours,
-        notification_email: systemConfig.notification_email || '',
         maintenance_mode: systemConfig.maintenance_mode,
         rate_limit_requests_per_minute: systemConfig.rate_limit_requests_per_minute,
         log_level: systemConfig.log_level,
@@ -172,7 +169,7 @@ export function SystemSettings() {
       notifications.show({
         title: 'Success',
         message: 'System configuration updated successfully',
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -196,7 +193,7 @@ export function SystemSettings() {
       notifications.show({
         title: 'Success',
         message: result.message,
-        color: 'green',
+        color: '#7fcf00',
         icon: <IconCheck size={16} />,
       });
     },
@@ -229,7 +226,7 @@ export function SystemSettings() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy':
-        return 'green';
+        return '#7fcf00';
       case 'warning':
         return 'yellow';
       case 'error':
@@ -266,7 +263,7 @@ export function SystemSettings() {
               <Stack gap="xs">
                 <Group justify="space-between">
                   <Text size="sm" c="dimmed">System Status</Text>
-                  <Badge color={getStatusColor(systemStatus.status)}>
+                  <Badge color={getStatusColor(systemStatus.status)} size='sm'>
                     {systemStatus.status.toUpperCase()}
                   </Badge>
                 </Group>
@@ -276,7 +273,7 @@ export function SystemSettings() {
                 </Group>
                 <Group justify="space-between">
                   <Text size="sm" c="dimmed">Database</Text>
-                  <Badge color="green" size="sm">{systemStatus.database_status}</Badge>
+                  <Badge color={getStatusColor(systemStatus.database_status)} size="sm">{systemStatus.database_status}</Badge>
                 </Group>
               </Stack>
             </Grid.Col>
@@ -351,7 +348,7 @@ export function SystemSettings() {
             <Divider />
 
             {/* File & Security Settings */}
-            <div>
+            {/* <div>
               <Group mb="md">
                 <IconShield size={20} />
                 <Text fw={500}>Security & File Settings</Text>
@@ -403,9 +400,9 @@ export function SystemSettings() {
                   />
                 </Grid.Col>
               </Grid>
-            </div>
+            </div> */}
 
-            <Divider />
+            {/* <Divider /> */}
 
             {/* Automation Settings */}
             <div>
@@ -425,7 +422,7 @@ export function SystemSettings() {
                 {form.values.auto_scan_enabled && (
                   <NumberInput
                     label="Auto Scan Interval (hours)"
-                    placeholder="6"
+                    placeholder="Interval in hours"
                     min={1}
                     max={168}
                     {...form.getInputProps('auto_scan_interval_hours')}
@@ -435,10 +432,10 @@ export function SystemSettings() {
               </Stack>
             </div>
 
-            <Divider />
+            {/* <Divider /> */}
 
             {/* Backup & Maintenance */}
-            <div>
+            {/* <div>
               <Group mb="md">
                 <IconDatabase size={20} />
                 <Text fw={500}>Backup & Maintenance</Text>
@@ -465,32 +462,16 @@ export function SystemSettings() {
                   />
                 </Grid.Col>
               </Grid>
-            </div>
+            </div> */}
 
-            <Divider />
+            {/* <Divider /> */}
 
-            {/* Notifications */}
-            <div>
-              <Group mb="md">
-                <IconBell size={20} />
-                <Text fw={500}>Notifications</Text>
-              </Group>
-              
-              <TextInput
-                label="Notification Email"
-                placeholder="admin@example.com"
-                description="Email address for system notifications and alerts"
-                {...form.getInputProps('notification_email')}
-                disabled={saveMutation.isPending}
-              />
-            </div>
-
-            <Divider />
+            {/* <Divider /> */}
 
             {/* Actions */}
             <Group justify="space-between">
               <Group>
-                <Button
+                {/* <Button
                   variant="light"
                   leftSection={<IconCloud size={16} />}
                   onClick={handleClearCache}
@@ -498,7 +479,7 @@ export function SystemSettings() {
                   disabled={clearCacheMutation.isPending}
                 >
                   Clear Cache
-                </Button>
+                </Button> */}
               </Group>
               
               <Button
@@ -513,6 +494,9 @@ export function SystemSettings() {
           </Stack>
         </form>
       </Card>
+
+      {/* Notification Settings */}
+      <NotificationSettings />
     </Stack>
   );
 }
