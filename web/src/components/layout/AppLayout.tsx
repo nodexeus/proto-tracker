@@ -237,7 +237,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   href={item.path}
                   label={item.label}
                   description={item.description}
-                  leftSection={<item.icon size="1rem" stroke={1.5} />}
+                  leftSection={<item.icon size={18} stroke={1.5} />}
                   rightSection={
                     item.adminOnly ? (
                       <Badge size="xs" variant="light" color="orange">
