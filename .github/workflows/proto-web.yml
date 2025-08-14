@@ -10,9 +10,9 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAME: ${{ github.repository }}
-  VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
-  VITE_API_URL=${{ vars.VITE_API_URL }}
-  VITE_GOOGLE_REDIRECT_URI=${{ vars.VITE_GOOGLE_REDIRECT_URI }}
+  VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+  VITE_API_URL: ${{ vars.VITE_API_URL }}
+  VITE_GOOGLE_REDIRECT_URI: ${{ vars.VITE_GOOGLE_REDIRECT_URI }}
 
 jobs:
   build-and-push:
