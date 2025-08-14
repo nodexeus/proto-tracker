@@ -42,7 +42,7 @@ export class ProtocolService extends ApiService {
    * Create a new protocol
    */
   async createProtocol(data: ProtocolCreate): Promise<Protocol> {
-    return this.post<Protocol>('/protocol', data);
+    return this.post<Protocol>('/protocol/', data);
   }
 
   /**
@@ -187,7 +187,7 @@ export class ProtocolService extends ApiService {
    * Create a new client
    */
   async createClient(data: ClientCreate): Promise<Client> {
-    return this.post<Client>('/client', data);
+    return this.post<Client>('/client/', data);
   }
 
   /**

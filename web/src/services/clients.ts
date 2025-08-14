@@ -38,7 +38,7 @@ export class ClientService extends ApiService {
    * Create a new client
    */
   async createClient(data: ClientCreate): Promise<Client> {
-    return this.post<Client>('/client', data);
+    return this.post<Client>('/client/', data);
   }
 
   /**

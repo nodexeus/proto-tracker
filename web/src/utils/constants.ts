@@ -53,13 +53,13 @@ export const API_ENDPOINTS = {
   PROTOCOL_SEARCH: '/protocols/search',
   
   // Clients
-  CLIENTS: '/clients',
+  CLIENTS: '/client/',
   
   // Snapshots
-  SNAPSHOTS: '/snapshots',
+  SNAPSHOTS: '/snapshots/',
   
   // Admin
-  B2_CONFIG: '/admin/b2-config',
+  B2_CONFIG: '/admin/s3-config',
 } as const;
 
 // Error Messages
