@@ -2348,7 +2348,10 @@ def get_current_user_info(
         return schemas.UserProfile(
             id=current_user.id,
             email=current_user.email,
+            username=current_user.username,
             name=f"{current_user.first_name} {current_user.last_name}" if current_user.first_name and current_user.last_name else current_user.username,
+            first_name=current_user.first_name,
+            last_name=current_user.last_name,
             is_admin=current_user.is_admin,
             is_active=current_user.is_active,
             picture=current_user.picture,

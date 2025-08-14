@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 
 from pydantic import BaseModel
 from datetime import datetime
@@ -174,7 +173,10 @@ class AdminUsersResponse(BaseModel):
 class UserProfile(BaseModel):
     id: int
     email: str
+    username: str
     name: str
+    first_name: Union[str, None] = None
+    last_name: Union[str, None] = None
     picture: Union[str, None] = None
     is_admin: bool = False
     is_active: bool = True
