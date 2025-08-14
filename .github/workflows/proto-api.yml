@@ -10,6 +10,10 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAME: ${{ github.repository }}
+  VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+  VITE_API_URL: ${{ vars.VITE_API_URL }}
+  VITE_GOOGLE_REDIRECT_URI: ${{ vars.VITE_GOOGLE_REDIRECT_URI }}
+  GOOGLE_CLIENT_SECRET: $${{ secrets.GOOGLE_CLIENT_SECRET }}
 
 jobs:
   build-and-push:
@@ -40,5 +44,10 @@ jobs:
           tags: |
             nodexeus/proto-api:latest
             nodexeus/proto-api:${{ steps.date.outputs.date }}
+          build-args: |
+            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
+            VITE_API_URL=${{ vars.VITE_API_URL }}
+            VITE_GOOGLE_REDIRECT_URI=${{ vars.VITE_GOOGLE_REDIRECT_URI }}
+            GOOGLE_CLIENT_SECRET=${{secrets.GOOGLECLIENT_SECRET }}
           cache-from: type=registry,ref=nodexeus/proto-api:latest
           cache-to: type=inline
