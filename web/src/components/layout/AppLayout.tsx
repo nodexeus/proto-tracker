@@ -125,7 +125,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 color="var(--mantine-color-proto-green-6)"
               />
               <Text size="lg" fw={600} c="proto-green.6">
-                Proto-tracker
+                Protocol Tracker
               </Text>
             </Group>
           </Group>

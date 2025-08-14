@@ -95,7 +95,7 @@ export function Login({ onSuccess, redirectTo }: LoginProps) {
         <Stack gap="lg">
           <div style={{ textAlign: 'center' }}>
             <Title order={2} mb="xs">
-              Welcome to Proto-tracker
+              Welcome to Protocol Tracker
             </Title>
             <Text c="dimmed" size="sm">
               Sign in to manage blockchain protocols and track updates
