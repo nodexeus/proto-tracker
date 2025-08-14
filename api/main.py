@@ -2121,8 +2121,10 @@ async def test_webhook_endpoint(
         notification_service = NotificationService()
         success = await notification_service.test_webhook(
             webhook_test.webhook_type,
-            webhook_test.webhook_url,
-            webhook_test.headers
+            webhook_url=webhook_test.webhook_url,
+            bot_token=webhook_test.bot_token,
+            chat_id=webhook_test.chat_id,
+            headers=webhook_test.headers
         )
         
         return {

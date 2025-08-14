@@ -369,26 +369,46 @@ class SystemStatus(BaseModel):
 # Notification Configuration schemas
 class NotificationConfigBase(BaseModel):
     notifications_enabled: bool = False
+    # Discord webhooks (support multiple URLs)
     discord_enabled: bool = False
-    discord_webhook_url: Optional[str] = None
+    discord_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    discord_webhook_urls: Optional[List[str]] = None  # Array of webhook URLs
+    # Slack webhooks (support multiple URLs)
     slack_enabled: bool = False
-    slack_webhook_url: Optional[str] = None
+    slack_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    slack_webhook_urls: Optional[List[str]] = None  # Array of webhook URLs
+    # Telegram webhooks (new)
+    telegram_enabled: bool = False
+    telegram_bot_token: Optional[str] = None
+    telegram_chat_ids: Optional[List[str]] = None  # Array of chat IDs
+    # Generic JSON webhooks (support multiple URLs)
     generic_enabled: bool = False
-    generic_webhook_url: Optional[str] = None
-    generic_headers: Optional[Dict[str, str]] = None
+    generic_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    generic_webhook_urls: Optional[List[Dict[str, Any]]] = None  # Array of {url: string, headers: object}
+    generic_headers: Optional[Dict[str, str]] = None  # Keep for backward compatibility
 
 class NotificationConfigCreate(NotificationConfigBase):
     pass
 
 class NotificationConfigUpdate(BaseModel):
     notifications_enabled: Optional[bool] = None
+    # Discord webhooks (support multiple URLs)
     discord_enabled: Optional[bool] = None
-    discord_webhook_url: Optional[str] = None
+    discord_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    discord_webhook_urls: Optional[List[str]] = None  # Array of webhook URLs
+    # Slack webhooks (support multiple URLs)
     slack_enabled: Optional[bool] = None
-    slack_webhook_url: Optional[str] = None
+    slack_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    slack_webhook_urls: Optional[List[str]] = None  # Array of webhook URLs
+    # Telegram webhooks (new)
+    telegram_enabled: Optional[bool] = None
+    telegram_bot_token: Optional[str] = None
+    telegram_chat_ids: Optional[List[str]] = None  # Array of chat IDs
+    # Generic JSON webhooks (support multiple URLs)
     generic_enabled: Optional[bool] = None
-    generic_webhook_url: Optional[str] = None
-    generic_headers: Optional[Dict[str, str]] = None
+    generic_webhook_url: Optional[str] = None  # Keep for backward compatibility
+    generic_webhook_urls: Optional[List[Dict[str, Any]]] = None  # Array of {url: string, headers: object}
+    generic_headers: Optional[Dict[str, str]] = None  # Keep for backward compatibility
 
 class NotificationConfig(NotificationConfigBase):
     id: int
@@ -419,6 +439,8 @@ class ClientNotificationSettings(ClientNotificationSettingsBase):
 
 # Webhook test schemas
 class WebhookTest(BaseModel):
-    webhook_type: str  # 'discord', 'slack', 'generic'
-    webhook_url: str
-    headers: Optional[Dict[str, str]] = None
+    webhook_type: str  # 'discord', 'slack', 'telegram', 'generic'
+    webhook_url: Optional[str] = None  # For Discord, Slack, Generic
+    bot_token: Optional[str] = None  # For Telegram
+    chat_id: Optional[str] = None  # For Telegram
+    headers: Optional[Dict[str, str]] = None  # For Generic webhooks

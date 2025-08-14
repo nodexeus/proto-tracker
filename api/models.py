@@ -203,18 +203,26 @@ class NotificationConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     notifications_enabled = Column(Boolean, nullable=False, default=False)
     
-    # Discord webhook
+    # Discord webhooks (support multiple URLs)
     discord_enabled = Column(Boolean, nullable=False, default=False)
-    discord_webhook_url = Column(String, nullable=True)
+    discord_webhook_url = Column(String, nullable=True)  # Keep for backward compatibility
+    discord_webhook_urls = Column(JSON, nullable=True)  # Array of webhook URLs
     
-    # Slack webhook
+    # Slack webhooks (support multiple URLs)
     slack_enabled = Column(Boolean, nullable=False, default=False)
-    slack_webhook_url = Column(String, nullable=True)
+    slack_webhook_url = Column(String, nullable=True)  # Keep for backward compatibility
+    slack_webhook_urls = Column(JSON, nullable=True)  # Array of webhook URLs
     
-    # Generic JSON webhook
+    # Telegram webhooks (new)
+    telegram_enabled = Column(Boolean, nullable=False, default=False)
+    telegram_bot_token = Column(String, nullable=True)
+    telegram_chat_ids = Column(JSON, nullable=True)  # Array of chat IDs
+    
+    # Generic JSON webhooks (support multiple URLs)
     generic_enabled = Column(Boolean, nullable=False, default=False)
-    generic_webhook_url = Column(String, nullable=True)
-    generic_headers = Column(JSON, nullable=True)  # Custom headers as JSON
+    generic_webhook_url = Column(String, nullable=True)  # Keep for backward compatibility
+    generic_webhook_urls = Column(JSON, nullable=True)  # Array of {url: string, headers: object} objects
+    generic_headers = Column(JSON, nullable=True)  # Keep for backward compatibility
     
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

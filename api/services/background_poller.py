@@ -270,6 +270,20 @@ class BackgroundPollerService:
     async def _send_update_notification(self, db: Session, client, protocol_update):
         """Send notification for a new protocol update"""
         try:
+            # Check if release is within the last 7 days to avoid spam when adding new clients
+            from datetime import datetime, timedelta, timezone
+            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            
+            # Convert release date to UTC timezone-aware datetime if needed
+            release_date = protocol_update.date
+            if release_date.tzinfo is None:
+                # Assume UTC if no timezone info
+                release_date = release_date.replace(tzinfo=timezone.utc)
+            
+            if release_date < seven_days_ago:
+                logger.debug(f"Skipping notification for {client.name} release {protocol_update.tag} - older than 7 days ({release_date})")
+                return
+            
             # Get notification configuration
             notification_config = crud.get_notification_config(db)
             if not notification_config or not notification_config.notifications_enabled:
@@ -294,11 +308,44 @@ class BackgroundPollerService:
             notes = protocol_update.notes
             is_prerelease = protocol_update.is_prerelease or False
             
-            # Collect webhook URLs
-            discord_url = notification_config.discord_webhook_url if notification_config.discord_enabled else None
-            slack_url = notification_config.slack_webhook_url if notification_config.slack_enabled else None
-            generic_url = notification_config.generic_webhook_url if notification_config.generic_enabled else None
-            generic_headers = notification_config.generic_headers
+            # Prepare webhook configurations (support both new multiple URLs and legacy single URLs)
+            discord_urls = []
+            slack_urls = []
+            telegram_config = None
+            generic_configs = []
+            
+            # Discord URLs
+            if notification_config.discord_enabled:
+                if notification_config.discord_webhook_urls:
+                    discord_urls.extend(notification_config.discord_webhook_urls)
+                elif notification_config.discord_webhook_url:  # Fallback to legacy
+                    discord_urls.append(notification_config.discord_webhook_url)
+            
+            # Slack URLs
+            if notification_config.slack_enabled:
+                if notification_config.slack_webhook_urls:
+                    slack_urls.extend(notification_config.slack_webhook_urls)
+                elif notification_config.slack_webhook_url:  # Fallback to legacy
+                    slack_urls.append(notification_config.slack_webhook_url)
+            
+            # Telegram configuration
+            if (notification_config.telegram_enabled and 
+                notification_config.telegram_bot_token and 
+                notification_config.telegram_chat_ids):
+                telegram_config = {
+                    'bot_token': notification_config.telegram_bot_token,
+                    'chat_ids': notification_config.telegram_chat_ids
+                }
+            
+            # Generic webhook configurations
+            if notification_config.generic_enabled:
+                if notification_config.generic_webhook_urls:
+                    generic_configs.extend(notification_config.generic_webhook_urls)
+                elif notification_config.generic_webhook_url:  # Fallback to legacy
+                    generic_configs.append({
+                        'url': notification_config.generic_webhook_url,
+                        'headers': notification_config.generic_headers or {}
+                    })
             
             # Send notifications
             results = await notification_service.send_protocol_update_notifications(
@@ -308,10 +355,12 @@ class BackgroundPollerService:
                 url=url,
                 notes=notes,
                 is_prerelease=is_prerelease,
-                discord_webhook_url=discord_url,
-                slack_webhook_url=slack_url,
-                generic_webhook_url=generic_url,
-                generic_headers=generic_headers
+                # New multiple URL support
+                discord_webhook_urls=discord_urls if discord_urls else None,
+                slack_webhook_urls=slack_urls if slack_urls else None,
+                telegram_bot_token=telegram_config['bot_token'] if telegram_config else None,
+                telegram_chat_ids=telegram_config['chat_ids'] if telegram_config else None,
+                generic_webhook_configs=generic_configs if generic_configs else None
             )
             
             # Log results
