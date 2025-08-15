@@ -157,11 +157,16 @@ function ClientForm({ opened, onClose, client, mode }: ClientFormProps) {
             value={formData.client}
             onChange={(e) => handleInputChange('client', e.currentTarget.value)}
           />
-          <TextInput
+          <Select
             label="Repository Type"
-            placeholder="e.g. implementation, tools"
+            placeholder="Select repository type"
             value={formData.repo_type}
-            onChange={(e) => handleInputChange('repo_type', e.currentTarget.value)}
+            onChange={(value) => handleInputChange('repo_type', value || '')}
+            data={[
+              { value: 'releases', label: 'Releases' },
+              { value: 'tags', label: 'Tags' }
+            ]}
+            description="Choose whether to monitor GitHub releases or tags"
           />
           <TextInput
             label="GitHub URL"
