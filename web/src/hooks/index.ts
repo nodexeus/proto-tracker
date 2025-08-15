@@ -49,4 +49,13 @@ export {
   apiKeysKeys 
 } from './useApiKeys';
 export { useClipboard } from './useClipboard';
+export { 
+  useAIConfig, 
+  useUpdateAIConfig, 
+  useTestAIConfig, 
+  useAIAnalysis, 
+  useAnalyzeProtocolUpdate, 
+  useSubmitAIFeedback, 
+  useAIFeedback 
+} from './useAI';
 export type { BlockNumberData } from './useBlockNumber';

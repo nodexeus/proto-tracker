@@ -1,0 +1,1 @@
+export { AIAnalysisCard } from './AIAnalysisCard';

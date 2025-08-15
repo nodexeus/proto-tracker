@@ -20,6 +20,7 @@ import {
   IconShield,
   IconLock,
   IconBrandGithub,
+  IconRobot,
 } from '@tabler/icons-react';
 import { PageContainer } from '../components/layout';
 import { S3StorageConfig } from '../components/settings/S3StorageConfig';
@@ -27,6 +28,7 @@ import { AdminUserManagement } from '../components/settings/AdminUserManagement'
 import { SystemSettings } from '../components/settings/SystemSettings';
 import { GitHubConfig } from '../components/admin/GitHubConfig';
 import { UpdatePollerManager } from '../components/admin/UpdatePollerManager';
+import { AISettings } from '../components/settings/AISettings';
 import { useAuth } from '../hooks/useAuth';
 
 export function Settings() {
@@ -85,6 +87,9 @@ export function Settings() {
               </Tabs.Tab>
               <Tabs.Tab value="github" leftSection={<IconBrandGithub size={16} />}>
                 GitHub Integration
+              </Tabs.Tab>
+              <Tabs.Tab value="ai" leftSection={<IconRobot size={16} />}>
+                AI Analysis
               </Tabs.Tab>
               <Tabs.Tab value="system" leftSection={<IconSettings size={16} />}>
                 System Settings
@@ -162,6 +167,10 @@ export function Settings() {
                 
                 <UpdatePollerManager />
               </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="ai" pt="md">
+              <AISettings />
             </Tabs.Panel>
           </Tabs>
         </Card>

@@ -43,6 +43,8 @@ import { notifications } from '@mantine/notifications';
 import type { ProtocolUpdate } from '../../types';
 import { formatDate, formatRelativeTime } from '../../utils/formatters';
 import { useUpdateProtocolUpdate } from '../../hooks';
+import { AIAnalysisCard } from '../ai';
+import { useAIAnalysis, useAnalyzeProtocolUpdate, useSubmitAIFeedback } from '../../hooks/useAI';
 
 interface UpdateDetailsModalProps {
   opened: boolean;
@@ -64,6 +66,11 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
   const [currentUpdate, setCurrentUpdate] = useState<ProtocolUpdate | null>(update);
 
   const updateMutation = useUpdateProtocolUpdate();
+  
+  // AI analysis hooks
+  const { data: aiAnalysis, isLoading: aiLoading } = useAIAnalysis(currentUpdate?.id || 0);
+  const analyzeProtocolMutation = useAnalyzeProtocolUpdate();
+  const submitFeedbackMutation = useSubmitAIFeedback();
 
   // Update currentUpdate when the prop changes
   useEffect(() => {
@@ -212,6 +219,19 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
         color: 'red',
       });
     }
+  };
+
+  const handleAnalyzeWithAI = () => {
+    if (currentUpdate?.id) {
+      analyzeProtocolMutation.mutate({ 
+        updateId: currentUpdate.id,
+        forceReanalyze: true 
+      });
+    }
+  };
+
+  const handleAIFeedback = (feedback: any) => {
+    submitFeedbackMutation.mutate(feedback);
   };
 
   const getBadgeProps = () => {
@@ -628,6 +648,17 @@ export function UpdateDetailsModal({ opened, onClose, update, onUpdateSaved }: U
               </Box>
             )}
           </Card>
+        )}
+
+        {/* AI Analysis */}
+        {currentUpdate?.id && (
+          <AIAnalysisCard
+            protocolUpdateId={currentUpdate.id}
+            analysis={aiAnalysis}
+            isLoading={aiLoading || analyzeProtocolMutation.isPending}
+            onAnalyze={handleAnalyzeWithAI}
+            onFeedback={handleAIFeedback}
+          />
         )}
 
         {/* Alerts */}

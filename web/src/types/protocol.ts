@@ -58,6 +58,26 @@ export interface ProtocolUpdate {
   hard_fork: boolean;
   fork_date?: string;
   github_url: string;
+  
+  // AI Analysis fields
+  ai_summary?: string;
+  ai_key_changes?: string[];
+  ai_breaking_changes?: string[];
+  ai_security_updates?: string[];
+  ai_upgrade_priority?: 'critical' | 'high' | 'medium' | 'low';
+  ai_risk_assessment?: string;
+  ai_technical_summary?: string;
+  ai_executive_summary?: string;
+  ai_estimated_impact?: string;
+  ai_confidence_score?: number;
+  ai_analysis_date?: string;
+  ai_provider?: string;
+  
+  // Enhanced hard fork fields
+  ai_hard_fork_details?: string;
+  activation_block?: number;
+  activation_date?: string;
+  coordination_required?: boolean;
 }
 
 export interface ProtocolUpdateCreate {
