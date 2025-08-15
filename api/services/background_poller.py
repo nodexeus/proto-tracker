@@ -91,8 +91,14 @@ class BackgroundPollerService:
         if not self.protocol_service:
             self.protocol_service = ProtocolService()
             
-        # Run the poll
-        result = await self._run_single_poll(db)
+        # Set flag to indicate this is a manual poll
+        self._is_manual_poll = True
+        try:
+            # Run the poll
+            result = await self._run_single_poll(db)
+        finally:
+            # Clear the flag
+            self._is_manual_poll = False
         
         # Update last poll time
         crud.update_github_config(db, schemas.GitHubConfigUpdate(
@@ -140,6 +146,31 @@ class BackgroundPollerService:
                 
         logger.info("Background polling loop ended")
         
+    def _should_analyze_update(self, protocol_update) -> bool:
+        """Determine if an update should be analyzed with AI (only recent updates)"""
+        try:
+            from datetime import datetime, timedelta, timezone
+            thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+            
+            # Get the update date
+            update_date = protocol_update.date
+            if isinstance(update_date, str):
+                # Parse string date
+                if update_date.endswith('Z'):
+                    update_date = datetime.fromisoformat(update_date[:-1]).replace(tzinfo=timezone.utc)
+                else:
+                    update_date = datetime.fromisoformat(update_date).replace(tzinfo=timezone.utc)
+            elif hasattr(update_date, 'tzinfo') and update_date.tzinfo is None:
+                # Add UTC timezone if missing
+                update_date = update_date.replace(tzinfo=timezone.utc)
+            
+            # Only analyze if within the last 30 days
+            return update_date >= thirty_days_ago
+        except Exception as e:
+            logger.warning(f"Could not determine update date for AI analysis: {e}")
+            # Default to analyzing if we can't determine the date
+            return True
+        
     async def _run_single_poll(self, db: Session) -> Dict[str, Any]:
         """Run a single polling cycle"""
         logger.info("Starting polling cycle")
@@ -151,7 +182,9 @@ class BackgroundPollerService:
         logger.info(f"Found {len(active_clients)} clients with GitHub URLs")
         
         total_updates = 0
+        ai_analyses_queued = 0
         errors = []
+        max_ai_analyses = 10  # Limit AI analyses per poll cycle to prevent overload
         
         for client in active_clients:
             try:
@@ -206,7 +239,9 @@ class BackgroundPollerService:
                     items_to_process.extend(tag_items)
                     logger.info(f"Fetched {len(tags)} tags for {client.name}")
                 
-                # Process all items (releases and/or tags) and create protocol updates
+                logger.info(f"Processing {len(items_to_process)} items for {client.name}")
+                
+                # Process all items and create protocol updates
                 for item in items_to_process:
                     # Handle both dict and object formats
                     tag_name = item.get('tag_name') if isinstance(item, dict) else item.tag_name
@@ -246,6 +281,24 @@ class BackgroundPollerService:
                     total_updates += 1
                     logger.info(f"Created update for {client.name}: {tag_name}")
                     
+                    # Run AI analysis on the new update if enabled
+                    # Only analyze recent updates (last 30 days) and limit per poll cycle
+                    should_analyze = self._should_analyze_update(new_update) and ai_analyses_queued < max_ai_analyses
+                    if should_analyze:
+                        ai_analyses_queued += 1
+                        # For manual polls, schedule AI analysis as background task to avoid blocking
+                        if hasattr(self, '_is_manual_poll') and self._is_manual_poll:
+                            # Don't await - let it run in background
+                            asyncio.create_task(self._analyze_update_with_ai(db, new_update, is_manual_poll=True))
+                        else:
+                            # Regular background polling can await the analysis
+                            await self._analyze_update_with_ai(db, new_update, is_manual_poll=False)
+                    else:
+                        if ai_analyses_queued >= max_ai_analyses:
+                            logger.debug(f"Skipping AI analysis for {client.name}: {tag_name} (AI analysis limit reached)")
+                        else:
+                            logger.debug(f"Skipping AI analysis for {client.name}: {tag_name} (older than 30 days)")
+                    
                     # Send notifications for this new update
                     await self._send_update_notification(db, client, new_update)
                     
@@ -260,12 +313,81 @@ class BackgroundPollerService:
             "status": "completed",
             "clients_polled": len(active_clients),
             "updates_created": total_updates,
+            "ai_analyses_queued": ai_analyses_queued,
             "errors": errors,
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Polling cycle completed: {total_updates} updates, {len(errors)} errors")
+        logger.info(f"Polling cycle completed: {total_updates} updates, {ai_analyses_queued} AI analyses queued, {len(errors)} errors")
         return result
+    
+    async def _analyze_update_with_ai(self, db: Session, protocol_update, is_manual_poll: bool = False):
+        """Run AI analysis on a new protocol update if AI is enabled"""
+        try:
+            # Get AI configuration
+            ai_config = crud.get_ai_config(db)
+            if not ai_config or not ai_config.ai_enabled or not ai_config.auto_analyze_enabled:
+                logger.debug(f"AI analysis skipped for update {protocol_update.id}: AI not enabled or auto-analyze disabled")
+                return
+            
+            if not ai_config.api_key:
+                logger.warning(f"AI analysis skipped for update {protocol_update.id}: No API key configured")
+                return
+            
+            # Skip if no release notes to analyze
+            if not protocol_update.notes or len(protocol_update.notes.strip()) < 10:
+                logger.debug(f"AI analysis skipped for update {protocol_update.id}: Release notes too short or empty")
+                return
+            
+            # Skip if AI analysis already exists for this update
+            if protocol_update.ai_summary:
+                logger.debug(f"AI analysis skipped for update {protocol_update.id}: Analysis already exists")
+                return
+            
+            # For manual polls, skip AI analysis for very long release notes to prevent timeout
+            if is_manual_poll and len(protocol_update.notes) > 5000:
+                logger.info(f"AI analysis skipped for update {protocol_update.id}: Manual poll with long release notes (len={len(protocol_update.notes)})")
+                return
+            
+            logger.info(f"Running AI analysis for update {protocol_update.id}: {protocol_update.tag}")
+            
+            from .ai_service import AIService, AIProvider
+            
+            # Initialize AI service
+            provider = AIProvider(ai_config.provider)
+            ai_service = AIService(
+                provider=provider,
+                api_key=ai_config.api_key,
+                model=ai_config.model,
+                base_url=ai_config.base_url
+            )
+            
+            # Run AI analysis with appropriate timeout
+            timeout = 30 if is_manual_poll else 60  # Shorter timeout for manual polls since they run in background
+            result = await ai_service.analyze_release_notes(
+                protocol_name=protocol_update.name or "Unknown Protocol",
+                client_name=protocol_update.client or "Unknown Client",
+                release_title=protocol_update.title or protocol_update.tag or "Unknown Release",
+                release_notes=protocol_update.notes or "",
+                tag_name=protocol_update.tag or "unknown",
+                is_prerelease=protocol_update.is_prerelease or False,
+                timeout_seconds=timeout
+            )
+            
+            if result:
+                # Save analysis results to database
+                crud.update_protocol_update_ai_analysis(db, protocol_update.id, result)
+                logger.info(f"AI analysis completed for update {protocol_update.id}: Priority {result.upgrade_priority}, Hard fork: {result.is_hard_fork}")
+                
+                # If it's a hard fork, add special notification
+                if result.is_hard_fork:
+                    logger.warning(f"Hard fork detected in update {protocol_update.id}: {protocol_update.name} {protocol_update.tag}")
+            else:
+                logger.warning(f"AI analysis failed for update {protocol_update.id}: No result returned")
+                
+        except Exception as e:
+            logger.error(f"AI analysis error for update {protocol_update.id}: {e}")
+            # Don't raise the exception to avoid breaking the polling cycle
     
     async def _send_update_notification(self, db: Session, client, protocol_update):
         """Send notification for a new protocol update"""

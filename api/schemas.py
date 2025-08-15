@@ -23,6 +23,26 @@ class ProtocolUpdatesBase(BaseModel):
     hard_fork: Union[bool, None] = False
     fork_date: Union[datetime, None] = None
     github_url: Optional[str] = None 
+    
+    # AI Analysis fields
+    ai_summary: Optional[str] = None
+    ai_key_changes: Optional[List[str]] = None
+    ai_breaking_changes: Optional[List[str]] = None
+    ai_security_updates: Optional[List[str]] = None
+    ai_upgrade_priority: Optional[str] = None
+    ai_risk_assessment: Optional[str] = None
+    ai_technical_summary: Optional[str] = None
+    ai_executive_summary: Optional[str] = None
+    ai_estimated_impact: Optional[str] = None
+    ai_confidence_score: Optional[float] = None
+    ai_analysis_date: Optional[datetime] = None
+    ai_provider: Optional[str] = None
+    
+    # Enhanced hard fork fields
+    ai_hard_fork_details: Optional[str] = None
+    activation_block: Optional[int] = None
+    activation_date: Optional[datetime] = None
+    coordination_required: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -446,3 +466,76 @@ class WebhookTest(BaseModel):
     bot_token: Optional[str] = None  # For Telegram
     chat_id: Optional[str] = None  # For Telegram
     headers: Optional[Dict[str, str]] = None  # For Generic webhooks
+
+# AI Configuration schemas
+class AIConfigBase(BaseModel):
+    ai_enabled: bool = False
+    provider: str = "openai"  # openai, anthropic, local
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    auto_analyze_enabled: bool = True
+    analysis_timeout_seconds: int = 60
+
+class AIConfigCreate(AIConfigBase):
+    pass
+
+class AIConfigUpdate(BaseModel):
+    ai_enabled: Optional[bool] = None
+    provider: Optional[str] = None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    auto_analyze_enabled: Optional[bool] = None
+    analysis_timeout_seconds: Optional[int] = None
+
+class AIConfig(AIConfigBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# AI Analysis schemas
+class AIAnalysisResult(BaseModel):
+    summary: Optional[str] = None
+    key_changes: Optional[List[str]] = None
+    breaking_changes: Optional[List[str]] = None
+    security_updates: Optional[List[str]] = None
+    upgrade_priority: Optional[str] = None  # critical, high, medium, low
+    risk_assessment: Optional[str] = None
+    technical_summary: Optional[str] = None
+    executive_summary: Optional[str] = None
+    estimated_impact: Optional[str] = None
+    confidence_score: Optional[float] = None
+    is_hard_fork: Optional[bool] = None
+    hard_fork_details: Optional[str] = None
+    activation_block: Optional[int] = None
+    activation_date: Optional[datetime] = None
+    coordination_required: Optional[bool] = None
+    analysis_date: Optional[datetime] = None
+    provider: Optional[str] = None
+
+class AIAnalysisRequest(BaseModel):
+    protocol_update_id: int
+    force_reanalyze: bool = False
+
+# AI Feedback schemas
+class AIAnalysisFeedbackBase(BaseModel):
+    rating: int  # 1-5 stars
+    feedback_text: Optional[str] = None
+    helpful_aspects: Optional[List[str]] = None
+    improvement_suggestions: Optional[List[str]] = None
+
+class AIAnalysisFeedbackCreate(AIAnalysisFeedbackBase):
+    protocol_update_id: int
+
+class AIAnalysisFeedback(AIAnalysisFeedbackBase):
+    id: int
+    protocol_update_id: int
+    user_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

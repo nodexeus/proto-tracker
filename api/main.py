@@ -2114,6 +2114,290 @@ def update_notification_config_endpoint(
             
         return updated_config
 
+# AI Configuration endpoints
+@app.get(
+    "/admin/ai-config",
+    response_model=Union[schemas.AIConfig, None],
+    tags=["Admin"],
+    summary="Get AI configuration"
+)
+def get_ai_config_endpoint(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get AI configuration (admin only)"""
+    with timer("get_ai_config"):
+        return crud.get_or_create_ai_config(db)
+
+@app.post(
+    "/admin/ai-config",
+    response_model=schemas.AIConfig,
+    tags=["Admin"],
+    summary="Create or update AI configuration"
+)
+def create_ai_config_endpoint(
+    config: schemas.AIConfigCreate,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Create or update AI configuration (admin only)"""
+    with timer("create_ai_config"):
+        # Check if config already exists
+        existing_config = crud.get_ai_config(db)
+        if existing_config:
+            # Update existing config
+            updated_config = crud.update_ai_config(db, existing_config.id, schemas.AIConfigUpdate(**config.model_dump()))
+            return updated_config
+        else:
+            # Create new config
+            return crud.create_ai_config(db, config)
+
+@app.patch(
+    "/admin/ai-config",
+    response_model=schemas.AIConfig,
+    tags=["Admin"],
+    summary="Update AI configuration"
+)
+def update_ai_config_endpoint(
+    config: schemas.AIConfigUpdate,
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update AI configuration (admin only)"""
+    with timer("update_ai_config"):
+        # Get existing config or create default
+        existing_config = crud.get_or_create_ai_config(db)
+        
+        # Update with new values
+        updated_config = crud.update_ai_config(db, existing_config.id, config)
+        if not updated_config:
+            raise HTTPException(status_code=404, detail="AI configuration not found")
+            
+        return updated_config
+
+@app.post(
+    "/admin/ai-config/test",
+    tags=["Admin"],
+    summary="Test AI configuration"
+)
+async def test_ai_config_endpoint(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Test AI configuration by running a simple analysis"""
+    with timer("test_ai_config"):
+        from services.ai_service import AIService, AIProvider
+        
+        ai_config = crud.get_ai_config(db)
+        if not ai_config or not ai_config.ai_enabled:
+            raise HTTPException(status_code=400, detail="AI is not enabled")
+        
+        if not ai_config.api_key:
+            raise HTTPException(status_code=400, detail="AI API key not configured")
+        
+        try:
+            # Initialize AI service
+            provider = AIProvider(ai_config.provider)
+            ai_service = AIService(
+                provider=provider,
+                api_key=ai_config.api_key,
+                model=ai_config.model,
+                base_url=ai_config.base_url
+            )
+            
+            # Test with a simple release note
+            test_notes = """
+            This release includes important bug fixes and performance improvements.
+            - Fixed memory leak in transaction processing
+            - Improved sync performance by 20%
+            - Updated dependencies for security patches
+            """
+            
+            result = await ai_service.analyze_release_notes(
+                protocol_name="Test Protocol",
+                client_name="Test Client", 
+                release_title="Test Release v1.0.0",
+                release_notes=test_notes,
+                tag_name="v1.0.0"
+            )
+            
+            if result:
+                return {
+                    "status": "success",
+                    "message": "AI analysis test completed successfully",
+                    "test_result": {
+                        "summary": result.summary[:100] + "..." if result.summary and len(result.summary) > 100 else result.summary,
+                        "confidence_score": result.confidence_score,
+                        "upgrade_priority": result.upgrade_priority
+                    }
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "AI analysis failed - no result returned"
+                }
+                
+        except Exception as e:
+            logger.error(f"AI configuration test failed: {e}")
+            return {
+                "status": "error",
+                "message": f"AI configuration test failed: {str(e)}"
+            }
+
+# AI Analysis endpoints
+@app.post(
+    "/ai/analyze-update/{update_id}",
+    response_model=schemas.AIAnalysisResult,
+    tags=["AI"],
+    summary="Analyze protocol update with AI"
+)
+async def analyze_protocol_update_endpoint(
+    update_id: int,
+    force_reanalyze: bool = False,
+    current_user: models.Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Analyze a protocol update with AI"""
+    with timer("analyze_protocol_update"):
+        from services.ai_service import AIService, AIProvider
+        
+        # Get the protocol update
+        protocol_update = crud.get_protocol_update(db, update_id)
+        if not protocol_update:
+            raise HTTPException(status_code=404, detail="Protocol update not found")
+        
+        # Check if analysis already exists and force_reanalyze is False
+        if not force_reanalyze and protocol_update.ai_summary:
+            # Return existing analysis
+            return schemas.AIAnalysisResult(
+                summary=protocol_update.ai_summary,
+                key_changes=protocol_update.ai_key_changes or [],
+                breaking_changes=protocol_update.ai_breaking_changes or [],
+                security_updates=protocol_update.ai_security_updates or [],
+                upgrade_priority=protocol_update.ai_upgrade_priority,
+                risk_assessment=protocol_update.ai_risk_assessment,
+                technical_summary=protocol_update.ai_technical_summary,
+                executive_summary=protocol_update.ai_executive_summary,
+                estimated_impact=protocol_update.ai_estimated_impact,
+                confidence_score=protocol_update.ai_confidence_score,
+                is_hard_fork=protocol_update.hard_fork,
+                hard_fork_details=protocol_update.ai_hard_fork_details,
+                activation_block=protocol_update.activation_block,
+                activation_date=protocol_update.activation_date,
+                coordination_required=protocol_update.coordination_required,
+                analysis_date=protocol_update.ai_analysis_date,
+                provider=protocol_update.ai_provider
+            )
+        
+        # Get AI configuration
+        ai_config = crud.get_ai_config(db)
+        if not ai_config or not ai_config.ai_enabled:
+            raise HTTPException(status_code=400, detail="AI analysis is not enabled")
+        
+        if not ai_config.api_key:
+            raise HTTPException(status_code=400, detail="AI API key not configured")
+        
+        try:
+            # Initialize AI service
+            provider = AIProvider(ai_config.provider)
+            ai_service = AIService(
+                provider=provider,
+                api_key=ai_config.api_key,
+                model=ai_config.model,
+                base_url=ai_config.base_url
+            )
+            
+            # Run AI analysis
+            result = await ai_service.analyze_release_notes(
+                protocol_name=protocol_update.name or "Unknown Protocol",
+                client_name=protocol_update.client or "Unknown Client",
+                release_title=protocol_update.title or protocol_update.tag or "Unknown Release",
+                release_notes=protocol_update.notes or "",
+                tag_name=protocol_update.tag or "unknown",
+                is_prerelease=protocol_update.is_prerelease or False
+            )
+            
+            if result:
+                # Save analysis results to database
+                crud.update_protocol_update_ai_analysis(db, update_id, result)
+                
+                # Return the analysis result
+                return schemas.AIAnalysisResult(
+                    summary=result.summary,
+                    key_changes=result.key_changes,
+                    breaking_changes=result.breaking_changes,
+                    security_updates=result.security_updates,
+                    upgrade_priority=result.upgrade_priority,
+                    risk_assessment=result.risk_assessment,
+                    technical_summary=result.technical_summary,
+                    executive_summary=result.executive_summary,
+                    estimated_impact=result.estimated_impact,
+                    confidence_score=result.confidence_score,
+                    is_hard_fork=result.is_hard_fork,
+                    hard_fork_details=result.hard_fork_details,
+                    activation_block=result.activation_block,
+                    activation_date=result.activation_date,
+                    coordination_required=result.coordination_required,
+                    analysis_date=datetime.utcnow(),
+                    provider=ai_config.provider
+                )
+            else:
+                raise HTTPException(status_code=500, detail="AI analysis failed to produce results")
+                
+        except Exception as e:
+            logger.error(f"AI analysis failed for update {update_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+
+@app.get(
+    "/ai/analysis/{update_id}",
+    response_model=Union[schemas.AIAnalysisResult, None],
+    tags=["AI"],
+    summary="Get AI analysis for protocol update"
+)
+def get_ai_analysis_endpoint(
+    update_id: int,
+    current_user: models.Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get AI analysis for a protocol update"""
+    with timer("get_ai_analysis"):
+        analysis = crud.get_protocol_update_ai_analysis(db, update_id)
+        if not analysis:
+            return None
+        
+        return schemas.AIAnalysisResult(**analysis)
+
+# AI Feedback endpoints
+@app.post(
+    "/ai/feedback",
+    response_model=schemas.AIAnalysisFeedback,
+    tags=["AI"],
+    summary="Submit feedback for AI analysis"
+)
+def submit_ai_feedback_endpoint(
+    feedback: schemas.AIAnalysisFeedbackCreate,
+    current_user: models.Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Submit feedback for AI analysis"""
+    with timer("submit_ai_feedback"):
+        return crud.create_ai_analysis_feedback(db, feedback, current_user.id)
+
+@app.get(
+    "/ai/feedback/{update_id}",
+    response_model=List[schemas.AIAnalysisFeedback],
+    tags=["AI"],
+    summary="Get feedback for AI analysis"
+)
+def get_ai_feedback_endpoint(
+    update_id: int,
+    current_user: models.Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all feedback for an AI analysis"""
+    with timer("get_ai_feedback"):
+        return crud.get_ai_analysis_feedback(db, update_id)
+
 @app.post(
     "/admin/test-webhook",
     tags=["Admin"],

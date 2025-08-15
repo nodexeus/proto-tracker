@@ -706,3 +706,138 @@ def get_user_by_api_key(db: Session, api_key: str):
         return None
     
     return db.query(models.Users).filter(models.Users.id == key_obj.user_id).first()
+
+# AI Configuration CRUD operations
+def get_ai_config(db: Session):
+    """Get AI configuration (should only be one record)"""
+    return db.query(models.AIConfig).first()
+
+def create_ai_config(db: Session, config: schemas.AIConfigCreate):
+    """Create AI configuration"""
+    db_config = models.AIConfig(**config.model_dump())
+    db.add(db_config)
+    db.commit()
+    db.refresh(db_config)
+    return db_config
+
+def update_ai_config(db: Session, config_id: int, config: schemas.AIConfigUpdate):
+    """Update AI configuration"""
+    db_config = db.query(models.AIConfig).filter(models.AIConfig.id == config_id).first()
+    if db_config:
+        update_data = config.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_config, field, value)
+        db.commit()
+        db.refresh(db_config)
+    return db_config
+
+def get_or_create_ai_config(db: Session):
+    """Get AI config or create default one if none exists"""
+    config = get_ai_config(db)
+    if not config:
+        config = create_ai_config(db, schemas.AIConfigCreate())
+    return config
+
+# AI Analysis CRUD operations
+def update_protocol_update_ai_analysis(db: Session, protocol_update_id: int, analysis_result):
+    """Update protocol update with AI analysis results"""
+    from datetime import datetime
+    
+    protocol_update = db.query(models.ProtocolUpdates).filter(
+        models.ProtocolUpdates.id == protocol_update_id
+    ).first()
+    
+    if not protocol_update:
+        return None
+    
+    # Update AI analysis fields
+    protocol_update.ai_summary = analysis_result.summary
+    protocol_update.ai_key_changes = analysis_result.key_changes
+    protocol_update.ai_breaking_changes = analysis_result.breaking_changes
+    protocol_update.ai_security_updates = analysis_result.security_updates
+    protocol_update.ai_upgrade_priority = analysis_result.upgrade_priority
+    protocol_update.ai_risk_assessment = analysis_result.risk_assessment
+    protocol_update.ai_technical_summary = analysis_result.technical_summary
+    protocol_update.ai_executive_summary = analysis_result.executive_summary
+    protocol_update.ai_estimated_impact = analysis_result.estimated_impact
+    protocol_update.ai_confidence_score = analysis_result.confidence_score
+    protocol_update.ai_analysis_date = datetime.utcnow()
+    
+    # Update hard fork fields
+    if analysis_result.is_hard_fork:
+        protocol_update.hard_fork = True
+        protocol_update.ai_hard_fork_details = analysis_result.hard_fork_details
+        protocol_update.activation_block = analysis_result.activation_block
+        protocol_update.activation_date = analysis_result.activation_date
+        protocol_update.coordination_required = analysis_result.coordination_required
+        
+        # Update fork_date if activation_date is available
+        if analysis_result.activation_date:
+            protocol_update.fork_date = analysis_result.activation_date
+    
+    db.commit()
+    db.refresh(protocol_update)
+    return protocol_update
+
+def get_protocol_updates_with_ai_analysis(db: Session, skip: int = 0, limit: int = 100):
+    """Get protocol updates with AI analysis results"""
+    return db.query(models.ProtocolUpdates).offset(skip).limit(limit).all()
+
+def get_protocol_update_ai_analysis(db: Session, protocol_update_id: int):
+    """Get AI analysis for a specific protocol update"""
+    protocol_update = db.query(models.ProtocolUpdates).filter(
+        models.ProtocolUpdates.id == protocol_update_id
+    ).first()
+    
+    if not protocol_update:
+        return None
+    
+    # Return AI analysis as a structured object
+    return {
+        "summary": protocol_update.ai_summary,
+        "key_changes": protocol_update.ai_key_changes,
+        "breaking_changes": protocol_update.ai_breaking_changes,
+        "security_updates": protocol_update.ai_security_updates,
+        "upgrade_priority": protocol_update.ai_upgrade_priority,
+        "risk_assessment": protocol_update.ai_risk_assessment,
+        "technical_summary": protocol_update.ai_technical_summary,
+        "executive_summary": protocol_update.ai_executive_summary,
+        "estimated_impact": protocol_update.ai_estimated_impact,
+        "confidence_score": protocol_update.ai_confidence_score,
+        "is_hard_fork": protocol_update.hard_fork,
+        "hard_fork_details": protocol_update.ai_hard_fork_details,
+        "activation_block": protocol_update.activation_block,
+        "activation_date": protocol_update.activation_date,
+        "coordination_required": protocol_update.coordination_required,
+        "analysis_date": protocol_update.ai_analysis_date,
+        "provider": protocol_update.ai_provider
+    }
+
+# AI Feedback CRUD operations
+def create_ai_analysis_feedback(db: Session, feedback: schemas.AIAnalysisFeedbackCreate, user_id: int):
+    """Create feedback for AI analysis"""
+    db_feedback = models.AIAnalysisFeedback(
+        protocol_update_id=feedback.protocol_update_id,
+        user_id=user_id,
+        rating=feedback.rating,
+        feedback_text=feedback.feedback_text,
+        helpful_aspects=feedback.helpful_aspects,
+        improvement_suggestions=feedback.improvement_suggestions
+    )
+    db.add(db_feedback)
+    db.commit()
+    db.refresh(db_feedback)
+    return db_feedback
+
+def get_ai_analysis_feedback(db: Session, protocol_update_id: int):
+    """Get all feedback for a specific protocol update's AI analysis"""
+    return db.query(models.AIAnalysisFeedback).filter(
+        models.AIAnalysisFeedback.protocol_update_id == protocol_update_id
+    ).all()
+
+def get_user_ai_analysis_feedback(db: Session, user_id: int, protocol_update_id: int):
+    """Get user's feedback for a specific protocol update's AI analysis"""
+    return db.query(models.AIAnalysisFeedback).filter(
+        models.AIAnalysisFeedback.user_id == user_id,
+        models.AIAnalysisFeedback.protocol_update_id == protocol_update_id
+    ).first()

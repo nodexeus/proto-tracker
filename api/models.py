@@ -39,6 +39,26 @@ class ProtocolUpdates(Base):
     fork_date = Column(DateTime(timezone=False), nullable=True)
     github_url = Column(String)
     
+    # AI Analysis fields
+    ai_summary = Column(String, nullable=True)
+    ai_key_changes = Column(JSON, nullable=True)  # Array of key changes
+    ai_breaking_changes = Column(JSON, nullable=True)  # Array of breaking changes
+    ai_security_updates = Column(JSON, nullable=True)  # Array of security updates
+    ai_upgrade_priority = Column(String, nullable=True)  # critical, high, medium, low
+    ai_risk_assessment = Column(String, nullable=True)
+    ai_technical_summary = Column(String, nullable=True)
+    ai_executive_summary = Column(String, nullable=True)
+    ai_estimated_impact = Column(String, nullable=True)
+    ai_confidence_score = Column(Float, nullable=True)  # 0.0 to 1.0
+    ai_analysis_date = Column(DateTime, nullable=True)
+    ai_provider = Column(String, nullable=True)  # openai, anthropic, local
+    
+    # Enhanced hard fork fields
+    ai_hard_fork_details = Column(String, nullable=True)
+    activation_block = Column(BigInteger, nullable=True)
+    activation_date = Column(DateTime, nullable=True)
+    coordination_required = Column(Boolean, nullable=True)
+    
     # Relationships
     client_entity = relationship('Client', back_populates='updates', lazy='select')
 
@@ -243,3 +263,35 @@ class ClientNotificationSettings(Base):
     __table_args__ = (
         UniqueConstraint('client_id', name='uix_client_notification'),
     )
+
+
+class AIConfig(Base):
+    __tablename__ = "ai_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ai_enabled = Column(Boolean, nullable=False, default=False)
+    provider = Column(String, nullable=False, default="openai")  # openai, anthropic, local
+    api_key = Column(String, nullable=True)
+    model = Column(String, nullable=True)  # gpt-5, claude-sonnet-4-20250514, etc.
+    base_url = Column(String, nullable=True)  # For local LLMs
+    auto_analyze_enabled = Column(Boolean, nullable=False, default=True)
+    analysis_timeout_seconds = Column(Integer, nullable=False, default=60)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AIAnalysisFeedback(Base):
+    __tablename__ = "ai_analysis_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    protocol_update_id = Column(Integer, ForeignKey('protocol_tracking.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(Integer, ForeignKey('Users.id', ondelete='CASCADE'), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5 stars
+    feedback_text = Column(String, nullable=True)
+    helpful_aspects = Column(JSON, nullable=True)  # Array of what was helpful
+    improvement_suggestions = Column(JSON, nullable=True)  # Array of suggestions
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationships
+    protocol_update = relationship('ProtocolUpdates')
+    user = relationship('Users')
