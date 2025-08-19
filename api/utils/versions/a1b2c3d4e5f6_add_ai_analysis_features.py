@@ -86,7 +86,7 @@ def downgrade() -> None:
     op.drop_index('idx_protocol_tracking_upgrade_priority', table_name='protocol_tracking')
     op.drop_index('idx_protocol_tracking_ai_analysis_date', table_name='protocol_tracking')
     
-    # Drop tables
+    # Drop AI-specific tables
     op.drop_index('idx_ai_analysis_feedback_user', table_name='ai_analysis_feedback')
     op.drop_index('idx_ai_analysis_feedback_protocol_update', table_name='ai_analysis_feedback')
     op.drop_index(op.f('ix_ai_analysis_feedback_id'), table_name='ai_analysis_feedback')
@@ -95,7 +95,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_ai_config_id'), table_name='ai_config')
     op.drop_table('ai_config')
     
-    # Remove AI analysis columns from protocol_tracking
+    # Remove AI analysis columns from protocol_tracking (table should remain)
     op.drop_column('protocol_tracking', 'coordination_required')
     op.drop_column('protocol_tracking', 'activation_date')
     op.drop_column('protocol_tracking', 'activation_block')
