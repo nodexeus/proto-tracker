@@ -112,30 +112,40 @@ class BackgroundPollerService:
         logger.info("Background polling loop started")
         
         while self.is_running:
+            db_gen = None
             try:
-                # Get a fresh database session
-                db = next(get_db())
+                # Get a fresh database session using the generator properly
+                db_gen = get_db()
+                db = next(db_gen)
                 
-                # Check if poller should still be running
-                github_config = crud.get_github_config(db)
-                if not github_config or not github_config.poller_enabled:
-                    logger.info("Poller disabled in database, stopping")
-                    self.is_running = False
-                    break
+                try:
+                    # Check if poller should still be running
+                    github_config = crud.get_github_config(db)
+                    if not github_config or not github_config.poller_enabled:
+                        logger.info("Poller disabled in database, stopping")
+                        self.is_running = False
+                        break
+                        
+                    # Run the poll
+                    await self._run_single_poll(db)
                     
-                # Run the poll
-                await self._run_single_poll(db)
+                    # Update last poll time
+                    crud.update_github_config(db, schemas.GitHubConfigUpdate(
+                        last_poll_time=datetime.utcnow()
+                    ))
+                    
+                    # Wait for the polling interval
+                    interval_seconds = github_config.polling_interval_minutes * 60
+                    logger.info(f"Waiting {interval_seconds} seconds until next poll")
+                    await asyncio.sleep(interval_seconds)
                 
-                # Update last poll time
-                crud.update_github_config(db, schemas.GitHubConfigUpdate(
-                    last_poll_time=datetime.utcnow()
-                ))
-                
-                # Wait for the polling interval
-                interval_seconds = github_config.polling_interval_minutes * 60
-                logger.info(f"Waiting {interval_seconds} seconds until next poll")
-                await asyncio.sleep(interval_seconds)
-                
+                finally:
+                    # Properly close the database session by calling next() to trigger cleanup
+                    try:
+                        next(db_gen)
+                    except StopIteration:
+                        pass  # This is expected when the generator completes
+                    
             except asyncio.CancelledError:
                 logger.info("Polling loop cancelled")
                 break
@@ -288,8 +298,8 @@ class BackgroundPollerService:
                         ai_analyses_queued += 1
                         # For manual polls, schedule AI analysis as background task to avoid blocking
                         if hasattr(self, '_is_manual_poll') and self._is_manual_poll:
-                            # Don't await - let it run in background
-                            asyncio.create_task(self._analyze_update_with_ai(db, new_update, is_manual_poll=True))
+                            # Don't await - let it run in background with its own db session
+                            asyncio.create_task(self._analyze_update_with_ai_background(new_update.id, is_manual_poll=True))
                         else:
                             # Regular background polling can await the analysis
                             await self._analyze_update_with_ai(db, new_update, is_manual_poll=False)
@@ -321,6 +331,32 @@ class BackgroundPollerService:
         logger.info(f"Polling cycle completed: {total_updates} updates, {ai_analyses_queued} AI analyses queued, {len(errors)} errors")
         return result
     
+    async def _analyze_update_with_ai_background(self, protocol_update_id: int, is_manual_poll: bool = False):
+        """Run AI analysis on a protocol update with its own database session (for background tasks)"""
+        db_gen = None
+        try:
+            # Get a fresh database session
+            db_gen = get_db()
+            db = next(db_gen)
+            
+            # Get the protocol update
+            protocol_update = crud.get_protocol_update(db, protocol_update_id)
+            if not protocol_update:
+                logger.error(f"Protocol update {protocol_update_id} not found for AI analysis")
+                return
+                
+            await self._analyze_update_with_ai(db, protocol_update, is_manual_poll)
+            
+        except Exception as e:
+            logger.error(f"Background AI analysis error for update {protocol_update_id}: {e}")
+        finally:
+            # Properly close the database session
+            if db_gen:
+                try:
+                    next(db_gen)
+                except StopIteration:
+                    pass  # This is expected when the generator completes
+
     async def _analyze_update_with_ai(self, db: Session, protocol_update, is_manual_poll: bool = False):
         """Run AI analysis on a new protocol update if AI is enabled"""
         try:
