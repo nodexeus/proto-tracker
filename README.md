@@ -65,6 +65,26 @@ Proto-Tracker is a comprehensive blockchain protocol monitoring system that auto
 - **Monitoring**: Built-in logging and error tracking
 - **Background Processing**: Asynchronous task processing for heavy operations
 
+## Screenshots
+
+### Dashboard
+![Dashboard](./assets/img/dashboard.png)
+
+### Protocol Information
+![Protocol](./assets/img/protocol.png)
+
+### Client List
+![Client List](./assets/img/clients.png)
+
+### Update List
+![Update List](./assets/img/updates.png)
+
+### Update Details
+![Update Details](./assets/img/update-details.png)
+
+### AI Analysis
+![AI Analysis](./assets/img/ai-analysis.png)
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -84,7 +104,7 @@ Proto-Tracker is a comprehensive blockchain protocol monitoring system that auto
    ```bash
    # Create .env file in project root
    cp .env.example .env
-   
+
    # Edit .env with your configuration
    vim .env
    ```
@@ -95,10 +115,10 @@ Proto-Tracker is a comprehensive blockchain protocol monitoring system that auto
    VITE_GOOGLE_CLIENT_ID=your_google_client_id
    GOOGLE_CLIENT_SECRET=your_google_client_secret
    VITE_GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
-   
+
    # API Configuration
    VITE_API_URL=http://localhost:8001
-   
+
    # AI Configuration (optional)
    OPENAI_API_KEY=your_openai_api_key
    ANTHROPIC_API_KEY=your_anthropic_api_key
