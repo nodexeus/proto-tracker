@@ -80,6 +80,7 @@ class Protocol(Base):
     # Relationships
     snapshots = relationship('SnapshotIndex', back_populates='protocol', cascade='all, delete-orphan')
     clients = relationship('Client', secondary=protocol_clients, back_populates='protocols', lazy='select')
+    snapshot_prefixes = relationship('ProtocolSnapshotPrefix', back_populates='protocol', cascade='all, delete-orphan')
 
 
 class Client(Base):
@@ -166,11 +167,33 @@ class S3Config(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ProtocolSnapshotPrefix(Base):
+    __tablename__ = "protocol_snapshot_prefixes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    protocol_id = Column(Integer, ForeignKey('protocols.id', ondelete='CASCADE'), nullable=False)
+    prefix = Column(String, nullable=False)  # e.g. "ethereum-reth-mainnet-archive-v1"
+    client_name = Column(String, nullable=True)  # e.g. "reth"
+    network = Column(String, nullable=True)  # e.g. "mainnet", "testnet"
+    node_type = Column(String, nullable=True)  # e.g. "archive", "full"
+    description = Column(String, nullable=True)  # Optional human-readable description
+    is_active = Column(Boolean, nullable=False, default=True)  # Allow disabling prefixes
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship with Protocol model
+    protocol = relationship('Protocol', back_populates='snapshot_prefixes')
+
+    # Ensure unique prefix per protocol
+    __table_args__ = (UniqueConstraint('protocol_id', 'prefix', name='unique_protocol_prefix'),)
+
+
 class SnapshotIndex(Base):
     __tablename__ = "snapshot_indices"
 
     id = Column(Integer, primary_key=True, index=True)
     protocol_id = Column(Integer, ForeignKey('protocols.id', ondelete='CASCADE'), nullable=False)
+    prefix_id = Column(Integer, ForeignKey('protocol_snapshot_prefixes.id', ondelete='CASCADE'), nullable=True)  # Link to the prefix used
     snapshot_id = Column(String, nullable=False)  # Unique identifier for the snapshot
     index_file_path = Column(String, nullable=False)  # Path to the JSON index file in bucket
     file_count = Column(Integer, nullable=False, default=0)
@@ -179,8 +202,9 @@ class SnapshotIndex(Base):
     indexed_at = Column(DateTime, nullable=False, default=datetime.utcnow)  # When we indexed it
     snapshot_metadata = Column(JSON, nullable=True)  # Additional snapshot metadata
 
-    # Relationship with Protocol model
+    # Relationships
     protocol = relationship('Protocol', back_populates='snapshots')
+    prefix = relationship('ProtocolSnapshotPrefix', backref='snapshots')
 
     __table_args__ = (
         UniqueConstraint('protocol_id', 'snapshot_id', name='uix_protocol_snapshot'),

@@ -545,15 +545,22 @@ async def scan_protocol_snapshots(
     if not protocol:
         raise HTTPException(status_code=404, detail="Protocol not found")
 
-    # Use protocol snapshot_prefix if available, otherwise fall back to protocol name
-    if protocol.snapshot_prefix:
-        prefix = protocol.snapshot_prefix
+    # Get all active snapshot prefixes for the protocol
+    protocol_prefixes = crud.get_active_protocol_snapshot_prefixes(db, protocol_id)
+    
+    # If no prefixes defined, fall back to legacy behavior
+    if not protocol_prefixes:
+        if protocol.snapshot_prefix:
+            prefixes_to_scan = [protocol.snapshot_prefix]
+        else:
+            # Fallback: convert protocol name to a basic prefix
+            protocol_name = protocol.name.lower().replace(" ", "-")
+            prefixes_to_scan = [f"{protocol_name}-"]
     else:
-        # Fallback: convert protocol name to a basic prefix
-        protocol_name = protocol.name.lower().replace(" ", "-")
-        prefix = f"{protocol_name}-"
+        prefixes_to_scan = [prefix.prefix for prefix in protocol_prefixes]
     
     logger.info(f"Scanning snapshots for protocol {protocol.name}")
+    logger.info(f"Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
 
     try:
         client = get_s3_client(db)
@@ -569,200 +576,200 @@ async def scan_protocol_snapshots(
         found_any_manifests = False
         new_snapshots = []
 
-        # List all top-level directories that start with the protocol prefix
+        # List all top-level directories that start with any of our protocol prefixes
         paginator = client.get_paginator("list_objects_v2")
 
-        logger.info(f"Looking for snapshots with prefix: {prefix}")
-        
-        try:
-            # Get all directories that start with our protocol name
-            for page in paginator.paginate(
-                Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
-            ):
-                if "CommonPrefixes" not in page:
-                    logger.info("No matching protocol directories found")
-                    continue
-
-                # For each protocol directory, list its version subdirectories
-                for prefix_obj in page["CommonPrefixes"]:
-                    protocol_dir = prefix_obj.get("Prefix", "")
-                    if not protocol_dir:
+        # Scan each prefix
+        for prefix in prefixes_to_scan:
+            logger.info(f"Looking for snapshots with prefix: {prefix}")
+            
+            try:
+                # Get all directories that start with this prefix
+                for page in paginator.paginate(
+                    Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
+                ):
+                    if "CommonPrefixes" not in page:
+                        logger.info(f"No matching protocol directories found for prefix: {prefix}")
                         continue
 
-                    total_directories += 1
-                    logger.info(f"Checking protocol directory: {protocol_dir}")
-                    
-                    # List all version subdirectories
-                    try:
-                        for version_page in paginator.paginate(
-                            Bucket=config.bucket_name,
-                            Prefix=protocol_dir,
-                            Delimiter="/"
-                        ):
-                            if "CommonPrefixes" not in version_page:
-                                logger.debug(f"No version subdirectories found in {protocol_dir}")
-                                continue
+                    # For each protocol directory, list its version subdirectories
+                    for prefix_obj in page["CommonPrefixes"]:
+                        protocol_dir = prefix_obj.get("Prefix", "")
+                        if not protocol_dir:
+                            continue
 
-                            # Check each version directory for manifest
-                            for version_prefix in version_page["CommonPrefixes"]:
-                                version_dir = version_prefix.get("Prefix", "")
-                                if not version_dir:
+                        total_directories += 1
+                        logger.info(f"Checking protocol directory: {protocol_dir}")
+                        
+                        # List all version subdirectories
+                        try:
+                            for version_page in paginator.paginate(
+                                Bucket=config.bucket_name,
+                                Prefix=protocol_dir,
+                                Delimiter="/"
+                            ):
+                                if "CommonPrefixes" not in version_page:
+                                    logger.debug(f"No version subdirectories found in {protocol_dir}")
                                     continue
 
-                                logger.info(f"Checking version directory: {version_dir}")
-                                manifest_path = f"{version_dir}manifest-body.json"
-                                total_manifests_checked += 1
-                                logger.info(f"Looking for manifest at: {manifest_path}")
-
-                                try:
-                                    # Try to get the manifest file
-                                    response = client.get_object(
-                                        Bucket=config.bucket_name, Key=manifest_path
-                                    )
-                                    found_any_manifests = True
-                                    logger.info(f"Found manifest: {manifest_path}")
-
-                                    def build_file_tree(paths):
-                                        """Build a hierarchical tree structure from file paths.
-                                        
-                                        Args:
-                                            paths (list): List of file paths
-                                            
-                                        Returns:
-                                            dict: Tree structure where each key is a directory/file and value is either
-                                                 None for files or another dict for directories
-                                        """
-                                        tree = {}
-                                        for path in sorted(set(paths)):  # Deduplicate and sort paths
-                                            parts = path.split('/')
-                                            current = tree
-                                            for i, part in enumerate(parts):
-                                                if i == len(parts) - 1:  # Leaf/file node
-                                                    current[part] = None
-                                                else:  # Directory node
-                                                    if part not in current:
-                                                        current[part] = {}
-                                                    current = current[part]
-                                        return tree
-
-                                    # Parse manifest data
-                                    manifest_data = json.loads(
-                                        response["Body"].read().decode("utf-8")
-                                    )
-
-                                    # Extract paths and total parts from manifest
-                                    raw_paths = []
-                                    total_parts = len(manifest_data.get("chunks", []))
-                                    for chunk in manifest_data.get("chunks", []):
-                                        # Each chunk represents a part
-                                        if "destinations" in chunk:
-                                            for dest in chunk["destinations"]:
-                                                if "path" in dest:
-                                                    raw_paths.append(dest["path"])
-                                    
-                                    # Build file tree and get unique paths
-                                    file_tree = build_file_tree(raw_paths)
-                                    paths = sorted(set(raw_paths))  # Deduplicate paths
-
-                                    if not paths:
-                                        logger.debug(
-                                            f"No valid paths found in manifest: {manifest_path}"
-                                        )
+                                # Check each version directory for manifest
+                                for version_prefix in version_page["CommonPrefixes"]:
+                                    version_dir = version_prefix.get("Prefix", "")
+                                    if not version_dir:
                                         continue
 
-                                    # Get the client, network, node type, and version from the prefix
-                                    prefix_parts = protocol_dir.rstrip("/").split("-")
-                                    client_name = (
-                                        prefix_parts[1]
-                                        if len(prefix_parts) > 1
-                                        else "unknown"
-                                    )
-                                    network = (
-                                        prefix_parts[2]
-                                        if len(prefix_parts) > 2
-                                        else "unknown"
-                                    )
-                                    node_type = (
-                                        prefix_parts[3]
-                                        if len(prefix_parts) > 3
-                                        else "unknown"
-                                    )
-                                    version = (
-                                        prefix_parts[4]
-                                        if len(prefix_parts) > 4
-                                        else "v1"
-                                    )
+                                    logger.info(f"Checking version directory: {version_dir}")
+                                    manifest_path = f"{version_dir}manifest-body.json"
+                                    total_manifests_checked += 1
+                                    logger.info(f"Looking for manifest at: {manifest_path}")
 
-                                    # Get the backup version from the version directory
-                                    version_num = version_dir.rstrip("/").split("/")[-1]
-
-                                    # Create snapshot record in database
                                     try:
-                                        snapshot_key = f"{protocol_dir}{version_num}"
-                                        snapshot_metadata = {
-                                            "version": int(version_num),
-                                            "manifest_path": manifest_path,
-                                            "total_parts": total_parts,
-                                            "paths": paths,
-                                            "file_tree": file_tree,  # Add hierarchical file structure
-                                            "client": client_name,
-                                            "network": network,
-                                            "node_type": node_type,
-                                            "version_tag": version
-                                        }
-
-                                        new_snapshot = models.SnapshotIndex(
-                                            protocol_id=protocol_id,
-                                            snapshot_id=snapshot_key,
-                                            index_file_path=manifest_path,
-                                            file_count=len(paths),
-                                            total_size=0,  # We'll need to calculate this from the manifest
-                                            created_at=response["LastModified"],
-                                            snapshot_metadata=snapshot_metadata
+                                        # Try to get the manifest file
+                                        response = client.get_object(
+                                            Bucket=config.bucket_name, Key=manifest_path
                                         )
-                                        db.add(new_snapshot)
-                                        db.commit()
-                                        new_snapshots.append(new_snapshot)
+                                        found_any_manifests = True
+                                        logger.info(f"Found manifest: {manifest_path}")
 
-                                        # Add to snapshot_info for tracking
-                                        snapshot_info[snapshot_key] = snapshot_metadata
+                                        def build_file_tree(paths):
+                                            """Build a hierarchical tree structure from file paths.
+                                            
+                                            Args:
+                                                paths (list): List of file paths
+                                                
+                                            Returns:
+                                                dict: Tree structure where each key is a directory/file and value is either
+                                                     None for files or another dict for directories
+                                            """
+                                            tree = {}
+                                            for path in sorted(set(paths)):  # Deduplicate and sort paths
+                                                parts = path.split('/')
+                                                current = tree
+                                                for i, part in enumerate(parts):
+                                                    if i == len(parts) - 1:  # Leaf/file node
+                                                        current[part] = None
+                                                    else:  # Directory node
+                                                        if part not in current:
+                                                            current[part] = {}
+                                                        current = current[part]
+                                            return tree
 
+                                        # Parse manifest data
+                                        manifest_data = json.loads(
+                                            response["Body"].read().decode("utf-8")
+                                        )
+
+                                        # Extract paths and total parts from manifest
+                                        raw_paths = []
+                                        total_parts = len(manifest_data.get("chunks", []))
+                                        for chunk in manifest_data.get("chunks", []):
+                                            # Each chunk represents a part
+                                            if "destinations" in chunk:
+                                                for dest in chunk["destinations"]:
+                                                    if "path" in dest:
+                                                        raw_paths.append(dest["path"])
+                                        
+                                        # Build file tree and get unique paths
+                                        file_tree = build_file_tree(raw_paths)
+                                        paths = sorted(set(raw_paths))  # Deduplicate paths
+
+                                        if not paths:
+                                            logger.debug(
+                                                f"No valid paths found in manifest: {manifest_path}"
+                                            )
+                                            continue
+
+                                        # Get the client, network, node type, and version from the prefix
+                                        prefix_parts = protocol_dir.rstrip("/").split("-")
+                                        client_name = (
+                                            prefix_parts[1]
+                                            if len(prefix_parts) > 1
+                                            else "unknown"
+                                        )
+                                        network = (
+                                            prefix_parts[2]
+                                            if len(prefix_parts) > 2
+                                            else "unknown"
+                                        )
+                                        node_type = (
+                                            prefix_parts[3]
+                                            if len(prefix_parts) > 3
+                                            else "unknown"
+                                        )
+                                        version = (
+                                            prefix_parts[4]
+                                            if len(prefix_parts) > 4
+                                            else "v1"
+                                        )
+
+                                        # Get the backup version from the version directory
+                                        version_num = version_dir.rstrip("/").split("/")[-1]
+
+                                        # Create snapshot record in database
+                                        try:
+                                            snapshot_key = f"{protocol_dir}{version_num}"
+                                            snapshot_metadata = {
+                                                "version": int(version_num),
+                                                "manifest_path": manifest_path,
+                                                "total_parts": total_parts,
+                                                "paths": paths,
+                                                "file_tree": file_tree,  # Add hierarchical file structure
+                                                "client": client_name,
+                                                "network": network,
+                                                "node_type": node_type,
+                                                "version_tag": version
+                                            }
+
+                                            new_snapshot = models.SnapshotIndex(
+                                                protocol_id=protocol_id,
+                                                snapshot_id=snapshot_key,
+                                                index_file_path=manifest_path,
+                                                file_count=len(paths),
+                                                total_size=0,  # We'll need to calculate this from the manifest
+                                                created_at=response["LastModified"],
+                                                snapshot_metadata=snapshot_metadata
+                                            )
+                                            db.add(new_snapshot)
+                                            db.commit()
+                                            new_snapshots.append(new_snapshot)
+
+                                            # Add to snapshot_info for tracking
+                                            snapshot_info[snapshot_key] = snapshot_metadata
+
+                                            logger.info(
+                                                f"Found and indexed snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
+                                            )
+                                        except Exception as e:
+                                            logger.error(f"Error saving snapshot to database: {str(e)}")
+                                            db.rollback()
+                                            continue
                                         logger.info(
-                                            f"Found and indexed snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
+                                            f"Found snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
                                         )
-                                    except Exception as e:
-                                        logger.error(f"Error saving snapshot to database: {str(e)}")
-                                        db.rollback()
+                                    except client.exceptions.NoSuchKey:
+                                        logger.debug(
+                                            f"No manifest found at {manifest_path}"
+                                        )
                                         continue
-                                    logger.info(
-                                        f"Found snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
-                                    )
-                                except client.exceptions.NoSuchKey:
-                                    logger.debug(
-                                        f"No manifest found at {manifest_path}"
-                                    )
-                                    continue
-                                except json.JSONDecodeError as e:
-                                    logger.error(
-                                        f"Invalid JSON format in manifest at {manifest_path}. Error: {str(e)}"
-                                    )
-                                    continue
-                                except client.exceptions.ClientError as e:
-                                    error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-                                    logger.error(
-                                        f"B2 client error accessing manifest at {manifest_path}. Error code: {error_code}. Details: {str(e)}"
-                                    )
-                                    continue
-                    except Exception as e:
-                        logger.error(
-                            f"Unexpected error processing manifest at {manifest_path}. Error type: {type(e).__name__}. Details: {str(e)}"
-                        )
-                        continue
-        except Exception as e:
-            logger.error(f"Error scanning snapshots: {str(e)}")
-            raise HTTPException(
-                status_code=500, detail=f"Error scanning snapshots: {str(e)}"
-            )
+                                    except json.JSONDecodeError as e:
+                                        logger.error(
+                                            f"Invalid JSON format in manifest at {manifest_path}. Error: {str(e)}"
+                                        )
+                                        continue
+                                    except client.exceptions.ClientError as e:
+                                        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                                        logger.error(
+                                            f"B2 client error accessing manifest at {manifest_path}. Error code: {error_code}. Details: {str(e)}"
+                                        )
+                                        continue
+                        except Exception as e:
+                            logger.error(
+                                f"Unexpected error processing manifest at {manifest_path}. Error type: {type(e).__name__}. Details: {str(e)}"
+                            )
+                            continue
+            except Exception as e:
+                logger.error(f"Error scanning snapshots for prefix {prefix}: {str(e)}")
+                continue
 
         # Create or update snapshot entries
         new_snapshots = []
@@ -947,6 +954,90 @@ async def list_snapshot_files(
         raise HTTPException(
             status_code=500, detail=f"Error listing snapshot files: {str(e)}"
         )
+
+
+# Snapshot Prefix Management endpoints
+@app.get(
+    "/protocols/{protocol_id}/snapshot-prefixes",
+    response_model=list[schemas.ProtocolSnapshotPrefix],
+    tags=["Snapshot Prefixes"]
+)
+def get_protocol_snapshot_prefixes_endpoint(
+    protocol_id: int,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db)
+):
+    """Get all snapshot prefixes for a protocol"""
+    protocol = crud.get_protocol(db, protocol_id)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    return crud.get_protocol_snapshot_prefixes(db, protocol_id)
+
+
+@app.post(
+    "/protocols/{protocol_id}/snapshot-prefixes",
+    response_model=schemas.ProtocolSnapshotPrefix,
+    tags=["Snapshot Prefixes"]
+)
+def create_protocol_snapshot_prefix_endpoint(
+    protocol_id: int,
+    prefix_data: schemas.ProtocolSnapshotPrefixCreate,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db)
+):
+    """Create a new snapshot prefix for a protocol"""
+    protocol = crud.get_protocol(db, protocol_id)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    # Ensure protocol_id matches
+    prefix_data.protocol_id = protocol_id
+    
+    try:
+        return crud.create_protocol_snapshot_prefix(db, prefix_data)
+    except Exception as e:
+        # Handle unique constraint violations
+        if "unique_protocol_prefix" in str(e):
+            raise HTTPException(
+                status_code=400, 
+                detail="This prefix already exists for this protocol"
+            )
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put(
+    "/snapshot-prefixes/{prefix_id}",
+    response_model=schemas.ProtocolSnapshotPrefix,
+    tags=["Snapshot Prefixes"]
+)
+def update_protocol_snapshot_prefix_endpoint(
+    prefix_id: int,
+    prefix_update: schemas.ProtocolSnapshotPrefixUpdate,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db)
+):
+    """Update a snapshot prefix"""
+    updated_prefix = crud.update_protocol_snapshot_prefix(db, prefix_id, prefix_update)
+    if not updated_prefix:
+        raise HTTPException(status_code=404, detail="Snapshot prefix not found")
+    return updated_prefix
+
+
+@app.delete(
+    "/snapshot-prefixes/{prefix_id}",
+    tags=["Snapshot Prefixes"]
+)
+def delete_protocol_snapshot_prefix_endpoint(
+    prefix_id: int,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db)
+):
+    """Delete a snapshot prefix"""
+    deleted_prefix = crud.delete_protocol_snapshot_prefix(db, prefix_id)
+    if not deleted_prefix:
+        raise HTTPException(status_code=404, detail="Snapshot prefix not found")
+    return {"message": "Snapshot prefix deleted successfully"}
 
 
 # ------------

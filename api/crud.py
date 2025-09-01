@@ -841,3 +841,57 @@ def get_user_ai_analysis_feedback(db: Session, user_id: int, protocol_update_id:
         models.AIAnalysisFeedback.user_id == user_id,
         models.AIAnalysisFeedback.protocol_update_id == protocol_update_id
     ).first()
+
+
+# Protocol Snapshot Prefix operations
+def get_protocol_snapshot_prefixes(db: Session, protocol_id: int):
+    """Get all snapshot prefixes for a protocol"""
+    return db.query(models.ProtocolSnapshotPrefix).filter(
+        models.ProtocolSnapshotPrefix.protocol_id == protocol_id
+    ).order_by(models.ProtocolSnapshotPrefix.created_at.asc()).all()
+
+def get_protocol_snapshot_prefix(db: Session, prefix_id: int):
+    """Get a specific snapshot prefix by ID"""
+    return db.query(models.ProtocolSnapshotPrefix).filter(
+        models.ProtocolSnapshotPrefix.id == prefix_id
+    ).first()
+
+def create_protocol_snapshot_prefix(db: Session, prefix: schemas.ProtocolSnapshotPrefixCreate):
+    """Create a new snapshot prefix for a protocol"""
+    db_prefix = models.ProtocolSnapshotPrefix(**prefix.model_dump())
+    db.add(db_prefix)
+    db.commit()
+    db.refresh(db_prefix)
+    return db_prefix
+
+def update_protocol_snapshot_prefix(db: Session, prefix_id: int, prefix_update: schemas.ProtocolSnapshotPrefixUpdate):
+    """Update a snapshot prefix"""
+    db_prefix = get_protocol_snapshot_prefix(db, prefix_id)
+    if not db_prefix:
+        return None
+    
+    update_data = prefix_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_prefix, field, value)
+    
+    db.add(db_prefix)
+    db.commit()
+    db.refresh(db_prefix)
+    return db_prefix
+
+def delete_protocol_snapshot_prefix(db: Session, prefix_id: int):
+    """Delete a snapshot prefix"""
+    db_prefix = get_protocol_snapshot_prefix(db, prefix_id)
+    if not db_prefix:
+        return None
+    
+    db.delete(db_prefix)
+    db.commit()
+    return db_prefix
+
+def get_active_protocol_snapshot_prefixes(db: Session, protocol_id: int):
+    """Get all active snapshot prefixes for a protocol"""
+    return db.query(models.ProtocolSnapshotPrefix).filter(
+        models.ProtocolSnapshotPrefix.protocol_id == protocol_id,
+        models.ProtocolSnapshotPrefix.is_active == True
+    ).order_by(models.ProtocolSnapshotPrefix.created_at.asc()).all()

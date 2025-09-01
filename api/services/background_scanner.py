@@ -177,34 +177,44 @@ class BackgroundScannerService:
             config = crud.get_s3_config(db)
 
             # Use protocol name to match against snapshot paths
-            # Use protocol snapshot_prefix if available, otherwise fall back to protocol name
-            if protocol.snapshot_prefix:
-                prefix = protocol.snapshot_prefix
+            # Get all active snapshot prefixes for the protocol
+            protocol_prefixes = crud.get_active_protocol_snapshot_prefixes(db, protocol.id)
+            
+            # If no prefixes defined, fall back to legacy behavior
+            if not protocol_prefixes:
+                if protocol.snapshot_prefix:
+                    prefixes_to_scan = [protocol.snapshot_prefix]
+                else:
+                    # Fallback: convert protocol name to a basic prefix
+                    protocol_name = protocol.name.lower().replace(" ", "-")
+                    prefixes_to_scan = [f"{protocol_name}-"]
             else:
-                # Fallback: convert protocol name to a basic prefix
-                protocol_name = protocol.name.lower().replace(" ", "-")
-                prefix = f"{protocol_name}-"
+                prefixes_to_scan = [prefix.prefix for prefix in protocol_prefixes]
             
             # Track snapshots by their full path and stats
             new_snapshots = []
             total_directories = 0
             total_manifests_checked = 0
 
-            # List all top-level directories that start with the protocol prefix
+            # List all top-level directories that start with any of our protocol prefixes
             paginator = client.get_paginator("list_objects_v2")
 
-            logger.debug(f"Looking for snapshots with prefix: {prefix}")
+            logger.debug(f"Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
             
-            # Get all directories that start with our protocol name
-            for page in paginator.paginate(
-                Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
-            ):
-                if "CommonPrefixes" not in page:
-                    continue
+            # Scan each prefix
+            for prefix in prefixes_to_scan:
+                logger.debug(f"Looking for snapshots with prefix: {prefix}")
+                
+                # Get all directories that start with this prefix
+                for page in paginator.paginate(
+                    Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
+                ):
+                    if "CommonPrefixes" not in page:
+                        continue
 
-                # For each protocol directory, list its version subdirectories
-                for prefix_obj in page["CommonPrefixes"]:
-                    protocol_dir = prefix_obj.get("Prefix", "")
+                    # For each protocol directory, list its version subdirectories
+                    for prefix_obj in page["CommonPrefixes"]:
+                        protocol_dir = prefix_obj.get("Prefix", "")
                     if not protocol_dir:
                         continue
 

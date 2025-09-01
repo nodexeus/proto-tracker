@@ -1,4 +1,4 @@
-from typing import Union, Optional, Dict, Any, List
+from typing import Union, Optional, Dict, Any, List, TYPE_CHECKING
 
 from pydantic import BaseModel
 from datetime import datetime
@@ -72,6 +72,39 @@ class ProtocolBase(BaseModel):
     class Config:
         from_attributes = True
 
+# Snapshot Prefix schemas (defined early to avoid forward reference issues)
+class ProtocolSnapshotPrefixBase(BaseModel):
+    prefix: str
+    client_name: Optional[str] = None
+    network: Optional[str] = None
+    node_type: Optional[str] = None
+    description: Optional[str] = None
+    is_active: bool = True
+
+
+class ProtocolSnapshotPrefixCreate(ProtocolSnapshotPrefixBase):
+    protocol_id: int
+
+
+class ProtocolSnapshotPrefixUpdate(BaseModel):
+    prefix: Optional[str] = None
+    client_name: Optional[str] = None
+    network: Optional[str] = None
+    node_type: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ProtocolSnapshotPrefix(ProtocolSnapshotPrefixBase):
+    id: int
+    protocol_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ClientBase(BaseModel):
     id: Union[int, None] = None
     name: Optional[str] = None
@@ -96,6 +129,7 @@ class Protocol(ProtocolBase):
     id: int
     logo: Optional[str] = None  # Base64 encoded PNG image
     clients: Optional[list['ClientBase']] = None  # Associated clients
+    snapshot_prefixes: Optional[list['ProtocolSnapshotPrefix']] = None  # Multiple snapshot prefixes
 
 
 class ProtocolDelete(BaseModel):
@@ -261,6 +295,7 @@ class S3Config(S3ConfigBase):
 class S3ConnectionTest(BaseModel):
     status: str
     message: str
+
 
 # Snapshot Index schemas
 class SnapshotIndexBase(BaseModel):
