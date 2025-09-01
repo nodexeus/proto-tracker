@@ -13,14 +13,16 @@ export const API_CONFIG: ApiConfig = {
 // Google OAuth Configuration
 export const GOOGLE_OAUTH_CONFIG = {
   clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-  redirectUri: import.meta.env.VITE_GOOGLE_REDIRECT_URI || `${window.location.origin}/auth/callback`,
+  redirectUri:
+    import.meta.env.VITE_GOOGLE_REDIRECT_URI ||
+    `${window.location.origin}/auth/callback`,
   scope: 'openid email profile',
 };
 
 // Application Constants
 export const APP_CONSTANTS = {
   APP_NAME: 'Proto Tracker',
-  VERSION: '1.0.0',
+  VERSION: '1.0.1',
   SUPPORTED_IMAGE_TYPES: ['image/png'],
   MAX_IMAGE_SIZE: 5 * 1024 * 1024, // 5MB
   DEFAULT_PAGE_SIZE: 20,
@@ -43,7 +45,7 @@ export const API_ENDPOINTS = {
   AUTH_REFRESH: '/auth/refresh',
   AUTH_API_KEYS: '/auth/api-keys',
   AUTH_OAUTH_PROVIDERS: '/auth/oauth-providers',
-  
+
   // Protocols
   PROTOCOLS: '/protocols',
   PROTOCOL_UPDATES: '/protocol-updates',
@@ -51,13 +53,13 @@ export const API_ENDPOINTS = {
   PROTOCOL_SCAN_SNAPSHOTS: (id: number) => `/protocols/${id}/scan-snapshots`,
   PROTOCOL_STATS: (id: number) => `/protocols/${id}/stats`,
   PROTOCOL_SEARCH: '/protocols/search',
-  
+
   // Clients
   CLIENTS: '/client/',
-  
+
   // Snapshots
   SNAPSHOTS: '/snapshots/',
-  
+
   // Admin
   B2_CONFIG: '/admin/s3-config',
 } as const;
