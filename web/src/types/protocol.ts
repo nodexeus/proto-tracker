@@ -129,3 +129,35 @@ export interface ClientUpdate {
   github_url?: string;
   repo_type?: string;
 }
+
+export interface ProtocolSnapshotPrefix {
+  id: number;
+  protocol_id: number;
+  prefix: string;
+  client_name?: string;
+  network?: string;
+  node_type?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProtocolSnapshotPrefixCreate {
+  protocol_id: number;
+  prefix: string;
+  client_name?: string;
+  network?: string;
+  node_type?: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface ProtocolSnapshotPrefixUpdate {
+  prefix?: string;
+  client_name?: string;
+  network?: string;
+  node_type?: string;
+  description?: string;
+  is_active?: boolean;
+}
