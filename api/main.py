@@ -545,8 +545,14 @@ async def scan_protocol_snapshots(
     if not protocol:
         raise HTTPException(status_code=404, detail="Protocol not found")
 
-    # Use protocol name to match against snapshot paths
-    protocol_name = protocol.name.lower()
+    # Use protocol snapshot_prefix if available, otherwise fall back to protocol name
+    if protocol.snapshot_prefix:
+        prefix = protocol.snapshot_prefix
+    else:
+        # Fallback: convert protocol name to a basic prefix
+        protocol_name = protocol.name.lower().replace(" ", "-")
+        prefix = f"{protocol_name}-"
+    
     logger.info(f"Scanning snapshots for protocol {protocol.name}")
 
     try:
@@ -563,9 +569,8 @@ async def scan_protocol_snapshots(
         found_any_manifests = False
         new_snapshots = []
 
-        # List all top-level directories that start with the protocol name
+        # List all top-level directories that start with the protocol prefix
         paginator = client.get_paginator("list_objects_v2")
-        prefix = f"{protocol_name}-"
 
         logger.info(f"Looking for snapshots with prefix: {prefix}")
         

@@ -177,16 +177,21 @@ class BackgroundScannerService:
             config = crud.get_s3_config(db)
 
             # Use protocol name to match against snapshot paths
-            protocol_name = protocol.name.lower()
+            # Use protocol snapshot_prefix if available, otherwise fall back to protocol name
+            if protocol.snapshot_prefix:
+                prefix = protocol.snapshot_prefix
+            else:
+                # Fallback: convert protocol name to a basic prefix
+                protocol_name = protocol.name.lower().replace(" ", "-")
+                prefix = f"{protocol_name}-"
             
             # Track snapshots by their full path and stats
             new_snapshots = []
             total_directories = 0
             total_manifests_checked = 0
 
-            # List all top-level directories that start with the protocol name
+            # List all top-level directories that start with the protocol prefix
             paginator = client.get_paginator("list_objects_v2")
-            prefix = f"{protocol_name}-"
 
             logger.debug(f"Looking for snapshots with prefix: {prefix}")
             
