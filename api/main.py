@@ -20,6 +20,8 @@ from google.oauth2 import id_token
 
 import crud, models, schemas
 from database import SessionLocal, engine
+from alembic.config import Config
+from alembic import command
 
 # Configure logging
 logging.basicConfig(
@@ -36,10 +38,18 @@ def timer(name: str):
     logger.debug(f"{name} took {duration:.2f} seconds")
 
 
-# Create tables at startup if they don't exist
-logger.info("Creating database tables...")
-models.Base.metadata.create_all(bind=engine)
-logger.info("Database tables created successfully!")
+# Run database migrations at startup
+logger.info("Running database migrations...")
+try:
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Database migrations completed successfully!")
+except Exception as e:
+    logger.error(f"Failed to run database migrations: {e}")
+    # Still create tables as fallback for new installations
+    logger.info("Falling back to creating database tables...")
+    models.Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully!")
 
 app = FastAPI(
     title="ProtoTracker API",
