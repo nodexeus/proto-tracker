@@ -1183,8 +1183,10 @@ async def create_protocol(
             logger.warning(f"Duplicate protocol attempted for {protocol.name} on network {protocol.network} with chain_id {protocol.chain_id}")
             raise HTTPException(status_code=400, detail="Protocol already registered with this name, network, and chain_id")
 
-        # Create new protocol
-        db_protocol = models.Protocol(**protocol.dict())
+        # Create new protocol - exclude snapshot_prefixes from dict() to avoid model error
+        protocol_data = protocol.dict()
+        snapshot_prefixes = protocol_data.pop('snapshot_prefixes', None)
+        db_protocol = models.Protocol(**protocol_data)
 
         # Process logo if provided
         if hasattr(protocol, "logo") and protocol.logo:
@@ -1202,6 +1204,18 @@ async def create_protocol(
         db.add(db_protocol)
         db.commit()
         db.refresh(db_protocol)
+        
+        # Create snapshot prefixes if provided
+        if snapshot_prefixes:
+            for prefix in snapshot_prefixes:
+                if prefix.strip():  # Only create non-empty prefixes
+                    prefix_data = schemas.ProtocolSnapshotPrefixCreate(
+                        protocol_id=db_protocol.id,
+                        prefix=prefix.strip(),
+                        is_active=True
+                    )
+                    crud.create_protocol_snapshot_prefix(db, prefix_data)
+                    db.commit()
         
         # Create response object manually to handle logo conversion
         response_protocol = schemas.Protocol(
@@ -1370,6 +1384,10 @@ async def update_protocol(
             raise HTTPException(status_code=404, detail="Protocol not found")
 
         update_data = protocol.dict(exclude_unset=True)
+        
+        # Handle snapshot_prefixes separately
+        snapshot_prefixes = update_data.pop('snapshot_prefixes', None)
+        
         if "logo" in update_data:
             try:
                 if update_data["logo"]:
@@ -1396,6 +1414,25 @@ async def update_protocol(
         try:
             db.commit()
             db.refresh(db_protocol)
+            
+            # Handle snapshot prefixes update if provided
+            if snapshot_prefixes is not None:
+                # Delete existing prefixes
+                existing_prefixes = crud.get_protocol_snapshot_prefixes(db, protocol_id)
+                for existing_prefix in existing_prefixes:
+                    crud.delete_protocol_snapshot_prefix(db, existing_prefix.id)
+                
+                # Create new prefixes
+                for prefix in snapshot_prefixes:
+                    if prefix.strip():  # Only create non-empty prefixes
+                        prefix_data = schemas.ProtocolSnapshotPrefixCreate(
+                            protocol_id=protocol_id,
+                            prefix=prefix.strip(),
+                            is_active=True
+                        )
+                        crud.create_protocol_snapshot_prefix(db, prefix_data)
+                
+                db.commit()
 
             # Create response object
             response_protocol = schemas.Protocol(
@@ -1407,6 +1444,7 @@ async def update_protocol(
                 proto_family=db_protocol.proto_family,
                 bpm=db_protocol.bpm,
                 network=db_protocol.network,
+                snapshot_prefix=db_protocol.snapshot_prefix,
                 logo=base64.b64encode(db_protocol.logo).decode("utf-8")
                 if db_protocol.logo
                 else None,

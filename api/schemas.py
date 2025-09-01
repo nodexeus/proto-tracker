@@ -118,11 +118,13 @@ class ClientBase(BaseModel):
 
 class ProtocolCreate(ProtocolBase):
     logo: Optional[str] = None  # Base64 encoded PNG image
+    snapshot_prefixes: Optional[List[str]] = None
 
 
 class ProtocolUpdate(ProtocolBase):
     id: Union[int, None] = None
     logo: Optional[str] = None  # Base64 encoded PNG image
+    snapshot_prefixes: Optional[List[str]] = None
 
 
 class Protocol(ProtocolBase):
