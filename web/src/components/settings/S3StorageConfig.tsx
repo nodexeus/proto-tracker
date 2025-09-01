@@ -72,6 +72,11 @@ export function S3StorageConfig() {
 
   const settingsService = new SettingsService(apiConfig);
 
+  // Helper function to check if config truly exists
+  const hasValidConfig = (config: S3Config | null) => {
+    return config && config.id > 0 && config.bucket_name;
+  };
+
   const form = useForm<FormValues>({
     initialValues: {
       bucket_name: '',
@@ -104,7 +109,7 @@ export function S3StorageConfig() {
 
   // Update form when config loads
   React.useEffect(() => {
-    if (existingConfig) {
+    if (hasValidConfig(existingConfig)) {
       form.setValues({
         bucket_name: existingConfig.bucket_name,
         endpoint_url: existingConfig.endpoint_url,
@@ -118,7 +123,8 @@ export function S3StorageConfig() {
   // Save configuration mutation
   const saveMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      if (existingConfig) {
+      // Check if config truly exists
+      if (hasValidConfig(existingConfig)) {
         return settingsService.updateS3Config(data);
       } else {
         return settingsService.createS3Config(data);
@@ -206,13 +212,13 @@ export function S3StorageConfig() {
       <Card withBorder>
         <Group justify="space-between" align="center">
           <Group>
-            <IconCloud size={24} color={existingConfig ? '#7fcf00' : 'gray'} />
+            <IconCloud size={24} color={hasValidConfig(existingConfig) ? '#7fcf00' : 'gray'} />
             <div>
               <Text fw={500}>
-                S3-Compatible Storage {existingConfig ? 'Configured' : 'Not Configured'}
+                S3-Compatible Storage {hasValidConfig(existingConfig) ? 'Configured' : 'Not Configured'}
               </Text>
               <Text size="sm" c="dimmed">
-                {existingConfig
+                {hasValidConfig(existingConfig)
                   ? `Connected to bucket: ${existingConfig.bucket_name}`
                   : 'No storage configuration found'
                 }
@@ -221,7 +227,7 @@ export function S3StorageConfig() {
           </Group>
           
           <Group>
-            {existingConfig && (
+            {hasValidConfig(existingConfig) && (
               <Badge color="#7fcf00" variant="light">
                 Active
               </Badge>
@@ -232,7 +238,7 @@ export function S3StorageConfig() {
                 variant="light"
                 onClick={handleTest}
                 loading={testMutation.isPending}
-                disabled={!existingConfig || testMutation.isPending}
+                disabled={!hasValidConfig(existingConfig) || testMutation.isPending}
               >
                 <IconTestPipe size={16} />
               </ActionIcon>
@@ -246,7 +252,7 @@ export function S3StorageConfig() {
         <form onSubmit={form.onSubmit(handleSave)}>
           <Stack gap="md">
             <Text fw={500} size="lg">
-              {existingConfig ? 'Update Configuration' : 'Configure S3-Compatible Storage'}
+              {hasValidConfig(existingConfig) ? 'Update Configuration' : 'Configure S3-Compatible Storage'}
             </Text>
 
             {/* Basic Configuration */}
@@ -309,7 +315,7 @@ export function S3StorageConfig() {
               <Stack gap="sm">
                 <TextInput
                   label="Access Key ID"
-                  placeholder={existingConfig ? "••••••••••••" : "Enter your Access Key ID"}
+                  placeholder={hasValidConfig(existingConfig) ? "••••••••••••" : "Enter your Access Key ID"}
                   required
                   {...form.getInputProps('access_key_id')}
                   disabled={saveMutation.isPending}
@@ -317,7 +323,7 @@ export function S3StorageConfig() {
 
                 <PasswordInput
                   label="Secret Access Key"
-                  placeholder={existingConfig ? "••••••••••••••••••••" : "Enter your Secret Access Key"}
+                  placeholder={hasValidConfig(existingConfig) ? "••••••••••••••••••••" : "Enter your Secret Access Key"}
                   required
                   {...form.getInputProps('secret_access_key')}
                   disabled={saveMutation.isPending}
@@ -336,7 +342,7 @@ export function S3StorageConfig() {
                 leftSection={<IconTestPipe size={16} />}
                 onClick={handleTest}
                 loading={testMutation.isPending}
-                disabled={!existingConfig || testMutation.isPending || saveMutation.isPending}
+                disabled={!hasValidConfig(existingConfig) || testMutation.isPending || saveMutation.isPending}
               >
                 Test Connection
               </Button>
@@ -347,7 +353,7 @@ export function S3StorageConfig() {
                 loading={saveMutation.isPending}
                 disabled={saveMutation.isPending}
               >
-                {existingConfig ? 'Update Configuration' : 'Save Configuration'}
+                {hasValidConfig(existingConfig) ? 'Update Configuration' : 'Save Configuration'}
               </Button>
             </Group>
           </Stack>
