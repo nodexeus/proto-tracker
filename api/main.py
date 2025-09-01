@@ -42,6 +42,14 @@ def timer(name: str):
 logger.info("Running database migrations...")
 try:
     alembic_cfg = Config("alembic.ini")
+    # Add debug info about what migrations Alembic can see
+    from alembic.script import ScriptDirectory
+    script = ScriptDirectory.from_config(alembic_cfg)
+    logger.info(f"Alembic script location: {script.dir}")
+    logger.info(f"Available migrations:")
+    for revision in script.walk_revisions():
+        logger.info(f"  - {revision.revision} (down: {revision.down_revision}): {revision.doc}")
+    
     command.upgrade(alembic_cfg, "head")
     logger.info("Database migrations completed successfully!")
 except Exception as e:
