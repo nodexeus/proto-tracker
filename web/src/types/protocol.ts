@@ -25,6 +25,7 @@ export interface ProtocolCreate {
   bpm?: number;
   logo?: string; // Base64 encoded PNG image
   snapshot_prefix?: string;
+  snapshot_prefixes?: string[];
 }
 
 export interface ProtocolUpdateData {
@@ -38,6 +39,7 @@ export interface ProtocolUpdateData {
   bpm?: number;
   logo?: string; // Base64 encoded PNG image
   snapshot_prefix?: string;
+  snapshot_prefixes?: string[];
 }
 
 export interface ProtocolUpdate {

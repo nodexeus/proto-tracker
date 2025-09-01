@@ -18,7 +18,7 @@ import {
 import { useForm } from '@mantine/form';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
 import { notifications } from '@mantine/notifications';
-import { IconUpload, IconX, IconPhoto, IconAlertCircle, IconCheck } from '@tabler/icons-react';
+import { IconUpload, IconX, IconPhoto, IconAlertCircle, IconCheck, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { Protocol, ProtocolCreate, ProtocolUpdateData } from '../../types';
 import { useClients, useProtocolClients, useAddClientToProtocol, useRemoveClientFromProtocol } from '../../hooks';
 import { useAuth } from '../../hooks/useAuth';
@@ -48,7 +48,7 @@ interface FormValues {
   public_rpc: string;
   proto_family: string;
   bpm: number | '';
-  snapshot_prefix: string;
+  snapshot_prefixes: string[];
   logo: string;
 }
 
@@ -81,7 +81,7 @@ export function ProtocolForm({
       public_rpc: '',
       proto_family: '',
       bpm: '',
-      snapshot_prefix: '',
+      snapshot_prefixes: [''],
       logo: '',
     },
     validate: {
@@ -127,7 +127,7 @@ export function ProtocolForm({
           public_rpc: protocol.public_rpc || '',
           proto_family: protocol.proto_family || '',
           bpm: protocol.bpm ?? '',
-          snapshot_prefix: protocol.snapshot_prefix || '',
+          snapshot_prefixes: protocol.snapshot_prefix ? [protocol.snapshot_prefix] : [''],
           logo: protocol.logo || '',
         });
         // Set selected clients if editing
@@ -136,6 +136,7 @@ export function ProtocolForm({
         }
       } else {
         form.reset();
+        form.setFieldValue('snapshot_prefixes', ['']);
         setSelectedClientIds([]);
       }
     }
@@ -176,6 +177,18 @@ export function ProtocolForm({
     form.setFieldValue('logo', '');
   }, [form]);
 
+  const addSnapshotPrefix = useCallback(() => {
+    const currentPrefixes = form.values.snapshot_prefixes;
+    form.setFieldValue('snapshot_prefixes', [...currentPrefixes, '']);
+  }, [form]);
+
+  const removeSnapshotPrefix = useCallback((index: number) => {
+    const currentPrefixes = form.values.snapshot_prefixes;
+    if (currentPrefixes.length > 1) {
+      form.setFieldValue('snapshot_prefixes', currentPrefixes.filter((_, i) => i !== index));
+    }
+  }, [form]);
+
   const handleSubmit = useCallback(async (values: FormValues) => {
     try {
       const formData: ProtocolCreate | ProtocolUpdateData = {
@@ -186,7 +199,8 @@ export function ProtocolForm({
         public_rpc: values.public_rpc.trim() || undefined,
         proto_family: values.proto_family.trim() || undefined,
         bpm: typeof values.bpm === 'number' ? values.bpm : undefined,
-        snapshot_prefix: values.snapshot_prefix.trim() || undefined,
+        snapshot_prefix: values.snapshot_prefixes.filter(p => p.trim()).length > 0 ? values.snapshot_prefixes[0].trim() : undefined,
+        snapshot_prefixes: values.snapshot_prefixes.filter(p => p.trim()).map(p => p.trim()),
         logo: values.logo || undefined,
       };
 
@@ -341,12 +355,51 @@ export function ProtocolForm({
                 />
               </Group>
               
-              <TextInput
-                label="Snapshot Prefix"
-                placeholder="Prefix for snapshot files"
-                {...form.getInputProps('snapshot_prefix')}
-                disabled={loading}
-              />
+              <div>
+                <Group justify="space-between" align="center" mb="xs">
+                  <Text size="sm" fw={500}>Snapshot Prefixes</Text>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={addSnapshotPrefix}
+                    disabled={loading}
+                  >
+                    Add Prefix
+                  </Button>
+                </Group>
+                <Stack gap="xs">
+                  {form.values.snapshot_prefixes.map((prefix, index) => (
+                    <Group key={index} align="flex-end">
+                      <TextInput
+                        style={{ flex: 1 }}
+                        placeholder="e.g., ethereum-reth-mainnet-archive-v1"
+                        value={prefix}
+                        onChange={(e) => {
+                          const newPrefixes = [...form.values.snapshot_prefixes];
+                          newPrefixes[index] = e.currentTarget.value;
+                          form.setFieldValue('snapshot_prefixes', newPrefixes);
+                        }}
+                        disabled={loading}
+                      />
+                      {form.values.snapshot_prefixes.length > 1 && (
+                        <Button
+                          variant="light"
+                          color="red"
+                          size="sm"
+                          onClick={() => removeSnapshotPrefix(index)}
+                          disabled={loading}
+                        >
+                          <IconTrash size={14} />
+                        </Button>
+                      )}
+                    </Group>
+                  ))}
+                </Stack>
+                <Text size="xs" c="dimmed" mt="xs">
+                  Add snapshot prefixes that will be used when scanning for snapshots
+                </Text>
+              </div>
             </Stack>
           </div>
 

@@ -34,7 +34,6 @@ import {
 import { PageContainer } from '../components/layout';
 import { UpdatesList } from '../components/protocol/UpdatesList';
 import { SnapshotManager } from '../components/snapshots/SnapshotManager';
-import { SnapshotPrefixManager } from '../components/forms/SnapshotPrefixManager';
 import { ProtocolForm } from '../components/forms';
 import { useProtocolForm } from '../hooks/useProtocolForm';
 import { useAuth } from '../hooks/useAuth';
@@ -45,7 +44,7 @@ import { getApiConfig } from '../utils';
 export function ProtocolDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'updates' | 'snapshots' | 'prefixes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'updates' | 'snapshots'>('overview');
 
   const {
     isModalOpen,
@@ -210,12 +209,6 @@ export function ProtocolDetail() {
             onClick={() => setActiveTab('snapshots')}
           >
             Snapshots ({snapshots?.length || 0})
-          </Button>
-          <Button
-            variant={activeTab === 'prefixes' ? 'filled' : 'subtle'}
-            onClick={() => setActiveTab('prefixes')}
-          >
-            Snapshot Prefixes
           </Button>
         </Group>
 
@@ -435,11 +428,6 @@ export function ProtocolDetail() {
           </Box>
         )}
 
-        {activeTab === 'prefixes' && (
-          <Box>
-            <SnapshotPrefixManager protocolId={protocol.id} />
-          </Box>
-        )}
       </Stack>
 
       {/* Edit Form Modal */}
