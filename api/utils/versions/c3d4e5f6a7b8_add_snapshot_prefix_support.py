@@ -1,8 +1,8 @@
-"""Add multiple snapshot prefixes support
+"""Add snapshot prefix support
 
-Revision ID: b2c3d4e5f6a7
+Revision ID: c3d4e5f6a7b8
 Revises: a1b2c3d4e5f6
-Create Date: 2025-09-01 19:00:00.000000
+Create Date: 2025-09-01 20:35:00.000000
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'b2c3d4e5f6a7'
+revision: str = 'c3d4e5f6a7b8'
 down_revision: Union[str, None] = 'a1b2c3d4e5f6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
