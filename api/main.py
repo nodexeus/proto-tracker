@@ -17,9 +17,12 @@ import string
 import os
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
-
-import crud, models, schemas
-from database import SessionLocal, engine
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
+from . import crud, models, schemas
+from .database import SessionLocal, engine
+from .utils import env
+from .utils.formatting import format_bytes, format_number_with_commas
 from alembic.config import Config
 from alembic import command
 
@@ -649,6 +652,22 @@ async def scan_protocol_snapshots(
                                         found_any_manifests = True
                                         logger.info(f"Found manifest: {manifest_path}")
 
+                                        # Also try to get the manifest-header.json file for additional metadata
+                                        header_manifest_path = f"{version_dir}manifest-header.json"
+                                        header_data = None
+                                        try:
+                                            header_response = client.get_object(
+                                                Bucket=config.bucket_name, Key=header_manifest_path
+                                            )
+                                            header_data = json.loads(
+                                                header_response["Body"].read().decode("utf-8")
+                                            )
+                                            logger.info(f"Found header manifest: {header_manifest_path}")
+                                        except client.exceptions.NoSuchKey:
+                                            logger.debug(f"No header manifest found at {header_manifest_path}")
+                                        except json.JSONDecodeError as e:
+                                            logger.error(f"Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
+
                                         def build_file_tree(paths):
                                             """Build a hierarchical tree structure from file paths.
                                             
@@ -737,13 +756,29 @@ async def scan_protocol_snapshots(
                                                 "node_type": node_type,
                                                 "version_tag": version
                                             }
+                                            
+                                            # Add header data if available
+                                            if header_data:
+                                                total_size_bytes = header_data.get("total_size", 0)
+                                                chunks_count = header_data.get("chunks", 0)
+                                                
+                                                snapshot_metadata.update({
+                                                    "total_size_bytes": total_size_bytes,
+                                                    "total_size_formatted": format_bytes(total_size_bytes),
+                                                    "chunks_count": chunks_count,
+                                                    "chunks_formatted": format_number_with_commas(chunks_count),
+                                                    "compression": header_data.get("compression", {})
+                                                })
 
+                                            # Use actual total size from header data if available
+                                            actual_total_size = header_data.get("total_size", 0) if header_data else 0
+                                            
                                             new_snapshot = models.SnapshotIndex(
                                                 protocol_id=protocol_id,
                                                 snapshot_id=snapshot_key,
                                                 index_file_path=manifest_path,
                                                 file_count=len(paths),
-                                                total_size=0,  # We'll need to calculate this from the manifest
+                                                total_size=actual_total_size,
                                                 created_at=response["LastModified"],
                                                 snapshot_metadata=snapshot_metadata
                                             )

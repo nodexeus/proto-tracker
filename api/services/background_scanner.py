@@ -4,14 +4,12 @@ Background snapshot scanner service that runs on the server
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from datetime import datetime
 from sqlalchemy.orm import Session
-
-from main import get_db, get_s3_client
-import crud
-import schemas
-import models
+from .. import models, schemas, crud
+from ..database import get_db
+from ..utils import env
+from ..utils.formatting import format_bytes, format_number_with_commas
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +248,22 @@ class BackgroundScannerService:
                                     import json
                                     manifest_json = json.loads(manifest_data)
                                     
+                                    # Also try to get the manifest-header.json file for additional metadata
+                                    header_manifest_path = f"{version_dir}manifest-header.json"
+                                    header_data = None
+                                    try:
+                                        header_response = client.get_object(
+                                            Bucket=config.bucket_name, Key=header_manifest_path
+                                        )
+                                        header_data = json.loads(
+                                            header_response["Body"].read().decode("utf-8")
+                                        )
+                                        logger.info(f"Found header manifest: {header_manifest_path}")
+                                    except client.exceptions.NoSuchKey:
+                                        logger.debug(f"No header manifest found at {header_manifest_path}")
+                                    except json.JSONDecodeError as e:
+                                        logger.error(f"Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
+                                    
                                     # Extract snapshot information
                                     snapshot_path = version_dir.rstrip('/')
                                     snapshot_name = snapshot_path.split('/')[-1]
@@ -264,15 +278,32 @@ class BackgroundScannerService:
                                         logger.debug(f"Snapshot {snapshot_name} already exists, skipping")
                                         continue
                                     
+                                    # Enhance manifest_json with header data if available
+                                    enhanced_metadata = manifest_json.copy()
+                                    actual_total_size = len(manifest_data)  # Default to manifest size
+                                    
+                                    if header_data:
+                                        total_size_bytes = header_data.get("total_size", 0)
+                                        chunks_count = header_data.get("chunks", 0)
+                                        
+                                        enhanced_metadata.update({
+                                            "total_size_bytes": total_size_bytes,
+                                            "total_size_formatted": format_bytes(total_size_bytes),
+                                            "chunks_count": chunks_count,
+                                            "chunks_formatted": format_number_with_commas(chunks_count),
+                                            "compression": header_data.get("compression", {})
+                                        })
+                                        actual_total_size = total_size_bytes
+                                    
                                     # Create new snapshot index record
                                     snapshot_data = schemas.SnapshotIndexCreate(
                                         protocol_id=protocol.id,
                                         snapshot_id=snapshot_name,
                                         index_file_path=manifest_path,
                                         file_count=len(manifest_json.get('files', [])) if 'files' in manifest_json else 0,
-                                        total_size=len(manifest_data),
+                                        total_size=actual_total_size,
                                         created_at=datetime.utcnow(),
-                                        snapshot_metadata=manifest_json
+                                        snapshot_metadata=enhanced_metadata
                                     )
                                     
                                     new_snapshot = crud.create_snapshot_index(db, snapshot_data)
