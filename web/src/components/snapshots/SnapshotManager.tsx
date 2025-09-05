@@ -425,7 +425,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
         {selectedSnapshot && (
           <Stack gap="md">
             {/* Snapshot Info */}
-            <Card withBorder bg="#2E2E2E">
+            <Card withBorder bg="dark.6">
               <Group justify="space-between">
                 <div>
                   <Text size="sm" fw={500}>Snapshot Information</Text>
@@ -440,7 +440,6 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
                         <Text size="sm">{selectedSnapshot.metadata_summary.chunks_formatted}</Text>
                       </div>
                     )}
-                    console.log(selectedSnapshot.metadata_summary.chunks_formatted)
                     <div>
                       <Text size="xs" c="dimmed">File Count</Text>
                       <Text size="sm">{selectedSnapshot.file_count.toLocaleString()}</Text>
