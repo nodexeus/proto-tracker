@@ -265,11 +265,17 @@ class BackgroundPollerService:
                     if not tag_name:
                         continue
                         
-                    # Check if we already have this release
+                    # Check if we already have this release (with proper error handling)
                     client_string = client.client or client.name or 'Unknown'
-                    existing = crud.get_protocol_update_by_tag(db, client_string, tag_name)
-                    if existing:
-                        continue
+                    try:
+                        existing = crud.get_protocol_update_by_tag(db, client_string, tag_name)
+                        if existing:
+                            continue
+                    except Exception as e:
+                        logger.error(f"Error checking existing protocol update for {client_string}:{tag_name}: {e}")
+                        # Rollback the transaction and skip this client
+                        db.rollback()
+                        raise e
                         
                     # Create protocol update
                     update_data = schemas.ProtocolUpdatesCreate(

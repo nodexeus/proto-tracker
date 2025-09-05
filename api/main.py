@@ -19,10 +19,9 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-from . import crud, models, schemas
-from .database import SessionLocal, engine
-from .utils import env
-from .utils.formatting import format_bytes, format_number_with_commas
+import crud, models, schemas
+from database import SessionLocal, engine
+from utils.formatting import format_bytes, format_number_with_commas
 from alembic.config import Config
 from alembic import command
 
@@ -45,18 +44,29 @@ def timer(name: str):
 logger.info("Running database migrations...")
 try:
     alembic_cfg = Config("alembic.ini")
+    # Set the database URL in the config
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
+    
     # Add debug info about what migrations Alembic can see
     from alembic.script import ScriptDirectory
+    from alembic.runtime.migration import MigrationContext
     script = ScriptDirectory.from_config(alembic_cfg)
     logger.info(f"Alembic script location: {script.dir}")
     logger.info(f"Available migrations:")
     for revision in script.walk_revisions():
         logger.info(f"  - {revision.revision} (down: {revision.down_revision}): {revision.doc}")
     
+    # Check current database version
+    with engine.connect() as connection:
+        context = MigrationContext.configure(connection)
+        current_rev = context.get_current_revision()
+        logger.info(f"Current database revision: {current_rev}")
+    
     command.upgrade(alembic_cfg, "head")
     logger.info("Database migrations completed successfully!")
 except Exception as e:
     logger.error(f"Failed to run database migrations: {e}")
+    logger.exception("Migration error details:")
     # Still create tables as fallback for new installations
     logger.info("Falling back to creating database tables...")
     models.Base.metadata.create_all(bind=engine)
