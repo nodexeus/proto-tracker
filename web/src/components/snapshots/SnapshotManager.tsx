@@ -337,11 +337,16 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
                           </Text>
                           <Group gap="xs" mt={2}>
                             <Badge size="xs" variant="light" color="blue">
-                              {formatBytes(snapshot.total_size)}
+                              {snapshot.metadata_summary?.total_size_formatted || formatBytes(snapshot.total_size)}
                             </Badge>
                             <Badge size="xs" variant="light" color="#7fcf00">
                               {snapshot.file_count.toLocaleString()} files
                             </Badge>
+                            {snapshot.metadata_summary?.chunks_formatted && (
+                              <Badge size="xs" variant="light" color="orange">
+                                {snapshot.metadata_summary.chunks_formatted} chunks
+                              </Badge>
+                            )}
                           </Group>
                         </div>
                         
@@ -427,8 +432,14 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
                   <Group gap="md" mt="xs">
                     <div>
                       <Text size="xs" c="dimmed">Total Size</Text>
-                      <Text size="sm">{formatBytes(selectedSnapshot.total_size)}</Text>
+                      <Text size="sm">{selectedSnapshot.metadata_summary?.total_size_formatted || formatBytes(selectedSnapshot.total_size)}</Text>
                     </div>
+                    {selectedSnapshot.metadata_summary?.chunks_formatted && (
+                      <div>
+                        <Text size="xs" c="dimmed">Chunks</Text>
+                        <Text size="sm">{selectedSnapshot.metadata_summary.chunks_formatted}</Text>
+                      </div>
+                    )}
                     <div>
                       <Text size="xs" c="dimmed">File Count</Text>
                       <Text size="sm">{selectedSnapshot.file_count.toLocaleString()}</Text>

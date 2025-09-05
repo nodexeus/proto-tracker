@@ -100,11 +100,16 @@ function SnapshotItem({ snapshot, onScanTrigger, isScanning }: SnapshotItemProps
                 {snapshot.snapshot_id}
               </Text>
               <Badge size="sm" color="blue">
-                {formatBytes(snapshot.total_size)}
+                {snapshot.metadata_summary?.total_size_formatted || formatBytes(snapshot.total_size)}
               </Badge>
               <Badge size="sm" color="#7fcf00" variant="light">
                 {snapshot.file_count.toLocaleString()} files
               </Badge>
+              {snapshot.metadata_summary?.chunks_formatted && (
+                <Badge size="sm" color="orange" variant="light">
+                  {snapshot.metadata_summary.chunks_formatted} chunks
+                </Badge>
+              )}
             </Group>
             <Text size="xs" c="dimmed">
               Created {formatRelativeTime(snapshot.created_at)} • 
