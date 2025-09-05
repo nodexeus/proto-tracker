@@ -367,6 +367,7 @@ def get_protocol_snapshots_summary(db: Session, protocol_id: int, skip: int = 0,
             'total_size': snapshot.total_size,
             'created_at': snapshot.created_at,
             'indexed_at': snapshot.indexed_at,
+            'snapshot_metadata': snapshot.snapshot_metadata,
             'metadata_summary': metadata_summary
         })
     
