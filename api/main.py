@@ -27,9 +27,12 @@ from alembic import command
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, 
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @contextmanager
@@ -572,8 +575,10 @@ async def scan_protocol_snapshots(
     db: Session = Depends(get_db),
 ):
     """Scan the B2 bucket for snapshots of the specified protocol."""
+    logger.info(f"Starting scan for protocol {protocol_id}")
     protocol = crud.get_protocol(db, protocol_id)
     if not protocol:
+        logger.error(f"Protocol {protocol_id} not found")
         raise HTTPException(status_code=404, detail="Protocol not found")
 
     # Get all active snapshot prefixes for the protocol
@@ -873,11 +878,17 @@ async def scan_protocol_snapshots(
         found_snapshot_ids = set(snapshot_info.keys())
         removed_count = 0
         
+        logger.info(f"Cleanup check: Found {len(found_snapshot_ids)} snapshots in S3: {found_snapshot_ids}")
+        logger.info(f"Cleanup check: Found {len(existing_snapshots)} snapshots in DB")
+        
         for existing_snapshot in existing_snapshots:
+            logger.debug(f"Checking DB snapshot: {existing_snapshot.snapshot_id}")
             if existing_snapshot.snapshot_id not in found_snapshot_ids:
                 logger.info(f"Removing snapshot {existing_snapshot.snapshot_id} - no longer exists in S3")
                 db.delete(existing_snapshot)
                 removed_count += 1
+            else:
+                logger.debug(f"Keeping snapshot {existing_snapshot.snapshot_id} - still exists in S3")
         
         if removed_count > 0:
             db.commit()
