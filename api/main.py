@@ -862,6 +862,13 @@ async def scan_protocol_snapshots(
                     print(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}", flush=True)
                 
                 db.commit()
+                
+                # Verify the metadata was actually stored
+                db.refresh(existing)
+                print(f"[SCAN] After commit, snapshot_metadata is: {existing.snapshot_metadata is not None}", flush=True)
+                if existing.snapshot_metadata:
+                    print(f"[SCAN] Metadata keys after commit: {existing.snapshot_metadata.keys()}", flush=True)
+                
                 new_snapshots.append(existing)
                 logger.info(f"Updated snapshot {snapshot_key} with size {format_bytes(existing.total_size)}")
                 continue
