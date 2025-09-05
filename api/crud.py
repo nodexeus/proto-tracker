@@ -345,7 +345,7 @@ def get_protocol_snapshots(db: Session, protocol_id: int, skip: int = 0, limit: 
             .limit(limit)
             .all())
 
-def get_protocol_snapshots_summary(db: Session, protocol_id: int, skip: int = 0, limit: int = 100):
+def list_protocol_snapshots(db: Session, protocol_id: int, skip: int = 0, limit: int = 100):
     """Get protocol snapshots with lightweight metadata (no paths array)"""
     snapshots = get_protocol_snapshots(db, protocol_id, skip, limit)
     
@@ -372,6 +372,10 @@ def get_protocol_snapshots_summary(db: Session, protocol_id: int, skip: int = 0,
         })
     
     return summary_snapshots
+
+def get_protocol_snapshots_summary(db: Session, protocol_id: int, skip: int = 0, limit: int = 100):
+    """Get protocol snapshots with lightweight metadata (no paths array) - deprecated, use list_protocol_snapshots"""
+    return list_protocol_snapshots(db, protocol_id, skip, limit)
 
 def get_snapshot_by_id(db: Session, snapshot_id: str, protocol_id: int):
     return (db.query(models.SnapshotIndex)
