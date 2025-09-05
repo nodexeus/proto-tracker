@@ -575,9 +575,11 @@ async def scan_protocol_snapshots(
     db: Session = Depends(get_db),
 ):
     """Scan the B2 bucket for snapshots of the specified protocol."""
+    print(f"[SCAN] Starting scan for protocol {protocol_id}")
     logger.info(f"Starting scan for protocol {protocol_id}")
     protocol = crud.get_protocol(db, protocol_id)
     if not protocol:
+        print(f"[SCAN] ERROR: Protocol {protocol_id} not found")
         logger.error(f"Protocol {protocol_id} not found")
         raise HTTPException(status_code=404, detail="Protocol not found")
 
@@ -595,6 +597,8 @@ async def scan_protocol_snapshots(
     else:
         prefixes_to_scan = [prefix.prefix for prefix in protocol_prefixes]
     
+    print(f"[SCAN] Scanning snapshots for protocol {protocol.name}")
+    print(f"[SCAN] Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
     logger.info(f"Scanning snapshots for protocol {protocol.name}")
     logger.info(f"Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
 
@@ -878,21 +882,21 @@ async def scan_protocol_snapshots(
         found_snapshot_ids = set(snapshot_info.keys())
         removed_count = 0
         
-        logger.info(f"Cleanup check: Found {len(found_snapshot_ids)} snapshots in S3: {found_snapshot_ids}")
-        logger.info(f"Cleanup check: Found {len(existing_snapshots)} snapshots in DB")
+        print(f"[SCAN] Cleanup check: Found {len(found_snapshot_ids)} snapshots in S3: {found_snapshot_ids}")
+        print(f"[SCAN] Cleanup check: Found {len(existing_snapshots)} snapshots in DB")
         
         for existing_snapshot in existing_snapshots:
-            logger.debug(f"Checking DB snapshot: {existing_snapshot.snapshot_id}")
+            print(f"[SCAN] Checking DB snapshot: {existing_snapshot.snapshot_id}")
             if existing_snapshot.snapshot_id not in found_snapshot_ids:
-                logger.info(f"Removing snapshot {existing_snapshot.snapshot_id} - no longer exists in S3")
+                print(f"[SCAN] Removing snapshot {existing_snapshot.snapshot_id} - no longer exists in S3")
                 db.delete(existing_snapshot)
                 removed_count += 1
             else:
-                logger.debug(f"Keeping snapshot {existing_snapshot.snapshot_id} - still exists in S3")
+                print(f"[SCAN] Keeping snapshot {existing_snapshot.snapshot_id} - still exists in S3")
         
         if removed_count > 0:
             db.commit()
-            logger.info(f"Removed {removed_count} snapshots that no longer exist in S3")
+            print(f"[SCAN] Removed {removed_count} snapshots that no longer exist in S3")
 
         logger.info(f"Scan summary:")
         logger.info(f"- Total directories checked: {total_directories}")
