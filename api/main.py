@@ -626,15 +626,28 @@ async def scan_protocol_snapshots(
                 page_iterator = paginator.paginate(
                     Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
                 )
-                if "CommonPrefixes" not in page_iterator:
-                    logger.info(f"No matching protocol directories found for prefix: {prefix}")
-                    continue
-
+                
+                print(f"[SCAN] Listing objects for prefix: {prefix}")
+                
                 # For each protocol directory, list its version subdirectories
+                found_any_pages = False
                 for page in page_iterator:
+                    found_any_pages = True
+                    print(f"[SCAN] Processing page with keys: {list(page.keys())}")
+                    
                     if "CommonPrefixes" not in page:
-                        logger.info(f"No matching protocol directories found for prefix: {prefix}")
+                        print(f"[SCAN] No CommonPrefixes in page for prefix: {prefix}")
+                        if "Contents" in page:
+                            print(f"[SCAN] Found {len(page['Contents'])} objects instead of directories")
+                            # Show first few object keys for debugging
+                            for i, obj in enumerate(page['Contents'][:5]):
+                                print(f"[SCAN] Object {i}: {obj.get('Key', 'no-key')}")
                         continue
+                    
+                    print(f"[SCAN] Found {len(page['CommonPrefixes'])} common prefixes")
+                
+                if not found_any_pages:
+                    print(f"[SCAN] No pages returned for prefix: {prefix}")
 
                     # For each protocol directory, list its version subdirectories
                     for prefix_obj in page["CommonPrefixes"]:
