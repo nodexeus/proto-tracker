@@ -439,6 +439,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
                         <Text size="xs" c="dimmed">Chunks</Text>
                         <Text size="sm">{selectedSnapshot.metadata_summary.chunks_formatted}</Text>
                       </div>
+                      console.log(selectedSnapshot.metadata_summary.chunks_formatted)
                     )}
                     <div>
                       <Text size="xs" c="dimmed">File Count</Text>
