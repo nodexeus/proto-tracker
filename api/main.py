@@ -855,6 +855,12 @@ async def scan_protocol_snapshots(
                 existing.total_size = info["metadata"].get("total_size_bytes", 0)
                 existing.snapshot_metadata = info["metadata"]
                 existing.indexed_at = datetime.utcnow()
+                
+                # Debug logging to check metadata content
+                print(f"[SCAN] Storing metadata for {snapshot_key}: {info['metadata'].keys() if info['metadata'] else 'None'}", flush=True)
+                if info["metadata"] and "chunks_formatted" in info["metadata"]:
+                    print(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}", flush=True)
+                
                 db.commit()
                 new_snapshots.append(existing)
                 logger.info(f"Updated snapshot {snapshot_key} with size {format_bytes(existing.total_size)}")
