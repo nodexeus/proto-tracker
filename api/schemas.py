@@ -329,6 +329,8 @@ class SnapshotIndexSummary(BaseModel):
     total_size: int
     created_at: datetime
     indexed_at: datetime
+    # Full metadata for compatibility
+    snapshot_metadata: Optional[Dict[str, Any]] = None
     # Metadata without the large 'paths' field
     metadata_summary: Optional[Dict[str, Any]] = None
 
