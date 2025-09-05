@@ -425,7 +425,7 @@ export function SnapshotManager({ protocolId, snapshots }: SnapshotManagerProps)
         {selectedSnapshot && (
           <Stack gap="md">
             {/* Snapshot Info */}
-            <Card withBorder bg="gray">
+            <Card withBorder bg="#2E2E2E">
               <Group justify="space-between">
                 <div>
                   <Text size="sm" fw={500}>Snapshot Information</Text>
