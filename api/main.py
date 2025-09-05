@@ -1,6 +1,6 @@
 from typing import Union, Annotated, List, Dict, Any
 
-from fastapi import Depends, FastAPI, HTTPException, status, Security, File, UploadFile, Request
+from fastapi import Depends, FastAPI, HTTPException, status, Security, File, UploadFile, Request, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader, APIKeyQuery
