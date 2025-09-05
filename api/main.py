@@ -124,8 +124,6 @@ async def startup_event():
     finally:
         db.close()
 
-print("API SERVER STARTING UP", flush=True)
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -138,7 +136,6 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests(request, call_next):
-    print(f"[REQUEST] {request.method} {request.url}", flush=True)
     logger.info(f"Request: {request.method} {request.url}")
     start_time = time.time()
     response = await call_next(request)
@@ -570,11 +567,9 @@ async def scan_protocol_snapshots(
     db: Session = Depends(get_db),
 ):
     """Scan the B2 bucket for snapshots of the specified protocol."""
-    print(f"[SCAN] Starting scan for protocol {protocol_id}", flush=True)
     logger.info(f"Starting scan for protocol {protocol_id}")
     protocol = crud.get_protocol(db, protocol_id)
     if not protocol:
-        print(f"[SCAN] ERROR: Protocol {protocol_id} not found")
         logger.error(f"Protocol {protocol_id} not found")
         raise HTTPException(status_code=404, detail="Protocol not found")
 
@@ -592,8 +587,6 @@ async def scan_protocol_snapshots(
     else:
         prefixes_to_scan = [prefix.prefix for prefix in protocol_prefixes]
     
-    print(f"[SCAN] Scanning snapshots for protocol {protocol.name}")
-    print(f"[SCAN] Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
     logger.info(f"Scanning snapshots for protocol {protocol.name}")
     logger.info(f"Using {len(prefixes_to_scan)} prefixes: {prefixes_to_scan}")
 
@@ -601,8 +594,6 @@ async def scan_protocol_snapshots(
         client = get_s3_client(db)
         config = crud.get_s3_config(db)
 
-        print(f"[SCAN] Using bucket: {config.bucket_name}")
-        print(f"[SCAN] Using endpoint: {config.endpoint_url}")
         logger.info(f"Using bucket: {config.bucket_name}")
         logger.info(f"Using endpoint: {config.endpoint_url}")
 
@@ -618,7 +609,6 @@ async def scan_protocol_snapshots(
 
         # Scan each prefix
         for prefix in prefixes_to_scan:
-            print(f"[SCAN] Scanning prefix: {prefix}")
             logger.info(f"Scanning prefix: {prefix}")
             try:
                 # List objects with the prefix
@@ -627,21 +617,15 @@ async def scan_protocol_snapshots(
                     Bucket=config.bucket_name, Prefix=prefix, Delimiter="/"
                 )
                 
-                print(f"[SCAN] Listing objects for prefix: {prefix}")
-                
                 # For each protocol directory, list its version subdirectories
                 found_any_pages = False
                 for page in page_iterator:
                     found_any_pages = True
-                    print(f"[SCAN] Processing page with keys: {list(page.keys())}")
                     
                     if "CommonPrefixes" not in page:
-                        print(f"[SCAN] No CommonPrefixes in page for prefix: {prefix}")
                         if "Contents" in page:
-                            print(f"[SCAN] Found {len(page['Contents'])} objects instead of directories")
+                            logger.info(f"- Found {len(page['Contents'])} objects instead of directories")
                         continue
-                    
-                    print(f"[SCAN] Found {len(page['CommonPrefixes'])} common prefixes")
 
                     # For each protocol directory, list its version subdirectories
                     for prefix_obj in page["CommonPrefixes"]:
@@ -649,7 +633,6 @@ async def scan_protocol_snapshots(
                         if not protocol_dir:
                             continue
 
-                        print(f"[SCAN] Found protocol directory: {protocol_dir}")
                         logger.debug(f"Found protocol directory: {protocol_dir}")
                         total_directories += 1
                         logger.info(f"Checking protocol directory: {protocol_dir}")
@@ -694,13 +677,10 @@ async def scan_protocol_snapshots(
                                             header_data = json.loads(
                                                 header_response["Body"].read().decode("utf-8")
                                             )
-                                            print(f"[SCAN] Found header manifest: {header_manifest_path}")
                                             logger.info(f"Found header manifest: {header_manifest_path}")
                                         except client.exceptions.NoSuchKey:
-                                            print(f"[SCAN] No header manifest found at {header_manifest_path}")
                                             logger.debug(f"No header manifest found at {header_manifest_path}")
                                         except json.JSONDecodeError as e:
-                                            print(f"[SCAN] Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
                                             logger.error(f"Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
 
                                         def build_file_tree(paths):
@@ -816,7 +796,6 @@ async def scan_protocol_snapshots(
                                                 "created_at": response["LastModified"],
                                                 "metadata": snapshot_metadata
                                             }
-                                            print(f"[SCAN] Added snapshot to snapshot_info: {snapshot_key}")
                                             
                                             new_snapshot = models.SnapshotIndex(
                                                 protocol_id=protocol_id,
@@ -899,21 +878,17 @@ async def scan_protocol_snapshots(
         found_snapshot_ids = set(snapshot_info.keys())
         removed_count = 0
         
-        print(f"[SCAN] Cleanup check: Found {len(found_snapshot_ids)} snapshots in S3: {list(found_snapshot_ids)}")
-        print(f"[SCAN] Cleanup check: Found {len(existing_snapshots)} snapshots in DB: {[s.snapshot_id for s in existing_snapshots]}")
-        
         for existing_snapshot in existing_snapshots:
-            print(f"[SCAN] Checking DB snapshot: {existing_snapshot.snapshot_id}")
             if existing_snapshot.snapshot_id not in found_snapshot_ids:
-                print(f"[SCAN] Removing snapshot {existing_snapshot.snapshot_id} - no longer exists in S3")
                 db.delete(existing_snapshot)
                 removed_count += 1
             else:
-                print(f"[SCAN] Keeping snapshot {existing_snapshot.snapshot_id} - still exists in S3")
+                logger.info(f"- Keeping snapshot {existing_snapshot.snapshot_id} - still exists in S3")
+                
         
         if removed_count > 0:
             db.commit()
-            print(f"[SCAN] Removed {removed_count} snapshots that no longer exist in S3")
+            logger.info(f"- Removed {removed_count} snapshots that no longer exist in S3")
 
         logger.info(f"Scan summary:")
         logger.info(f"- Total directories checked: {total_directories}")
