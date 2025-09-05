@@ -12,15 +12,15 @@ def format_bytes(bytes_value):
     Returns:
         str: Human-readable size string
     """
-    if bytes_value < 1024:
+    if bytes_value < 1000:
         return f"{bytes_value} B"
     
     units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
     size = float(bytes_value)
     unit_index = 0
     
-    while size >= 1024 and unit_index < len(units) - 1:
-        size /= 1024
+    while size >= 1000 and unit_index < len(units) - 1:
+        size /= 1000
         unit_index += 1
     
     # Format with appropriate decimal places
