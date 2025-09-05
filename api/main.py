@@ -842,7 +842,15 @@ async def scan_protocol_snapshots(
             # Check if this snapshot is already indexed
             existing = crud.get_snapshot_by_id(db, snapshot_key, protocol_id)
             if existing:
-                logger.debug(f"Snapshot already exists: {snapshot_key}")
+                logger.info(f"Updating existing snapshot: {snapshot_key}")
+                # Update existing snapshot with new metadata including header data
+                existing.file_count = len(info["paths"])
+                existing.total_size = info["metadata"].get("total_size_bytes", 0)
+                existing.snapshot_metadata = info["metadata"]
+                existing.indexed_at = datetime.utcnow()
+                db.commit()
+                new_snapshots.append(existing)
+                logger.info(f"Updated snapshot {snapshot_key} with size {format_bytes(existing.total_size)}")
                 continue
 
             logger.info(f"Creating new snapshot index for {snapshot_key}")
@@ -852,7 +860,7 @@ async def scan_protocol_snapshots(
                 snapshot_id=info["prefix"],  # Use the full prefix as the snapshot ID
                 index_file_path=info["manifest_path"],
                 file_count=len(info["paths"]),
-                total_size=0,  # We could sum up sizes if needed
+                total_size=info["metadata"].get("total_size_bytes", 0),
                 created_at=info["created_at"],
                 snapshot_metadata=info["metadata"],  # Use the pre-built metadata
             )
@@ -877,24 +885,109 @@ async def scan_protocol_snapshots(
         )
 
 
-@app.get(
-    "/protocols/{protocol_id}/snapshots", 
-    response_model=list[schemas.SnapshotIndexSummary],
-   tags=["Snapshots"]
-)
-def list_protocol_snapshots(
-    protocol_id: int,
-    skip: int = 0,
-    limit: int = 100,
-    api_key: str = Security(get_api_key),
-    db: Session = Depends(get_db),
+@app.get("/protocols/{protocol_id}/snapshots", response_model=List[schemas.SnapshotIndex])
+def get_protocol_snapshots(
+    protocol_id: int, 
+    skip: int = Query(0, ge=0), 
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db)
 ):
-    """List all snapshots for a protocol (lightweight version without file paths)."""
+    """Get snapshots for a specific protocol"""
     protocol = crud.get_protocol(db, protocol_id)
     if not protocol:
         raise HTTPException(status_code=404, detail="Protocol not found")
 
     return crud.get_protocol_snapshots_summary(db, protocol_id, skip, limit)
+
+
+@app.post("/protocols/{protocol_id}/snapshots/update-metadata")
+def update_snapshots_metadata(
+    protocol_id: int,
+    db: Session = Depends(get_db)
+):
+    """Update existing snapshots with manifest-header.json data"""
+    protocol = crud.get_protocol(db, protocol_id)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    # Get S3 configuration
+    config = crud.get_s3_config(db)
+    if not config:
+        raise HTTPException(status_code=400, detail="S3 configuration not found")
+    
+    # Create S3 client
+    client = get_s3_client(db)
+    
+    # Get all snapshots for this protocol
+    snapshots = crud.get_protocol_snapshots(db, protocol_id, skip=0, limit=1000)
+    
+    updated_count = 0
+    errors = []
+    
+    for snapshot in snapshots:
+        try:
+            # Extract version directory from index_file_path
+            # e.g., "ethereum-reth-mainnet-archive-v1/2/manifest-body.json" -> "ethereum-reth-mainnet-archive-v1/2/"
+            version_dir = "/".join(snapshot.index_file_path.split("/")[:-1]) + "/"
+            header_manifest_path = f"{version_dir}manifest-header.json"
+            
+            try:
+                # Try to get the manifest-header.json file
+                header_response = client.get_object(
+                    Bucket=config.bucket_name, Key=header_manifest_path
+                )
+                header_data = json.loads(
+                    header_response["Body"].read().decode("utf-8")
+                )
+                logger.info(f"Found header manifest for snapshot {snapshot.snapshot_id}: {header_manifest_path}")
+                
+                # Extract data from header
+                total_size_bytes = header_data.get("total_size", 0)
+                chunks_count = header_data.get("chunks", 0)
+                
+                # Update snapshot metadata
+                if snapshot.snapshot_metadata:
+                    updated_metadata = snapshot.snapshot_metadata.copy()
+                else:
+                    updated_metadata = {}
+                
+                updated_metadata.update({
+                    "total_size_bytes": total_size_bytes,
+                    "total_size_formatted": format_bytes(total_size_bytes),
+                    "chunks_count": chunks_count,
+                    "chunks_formatted": format_number_with_commas(chunks_count),
+                    "compression": header_data.get("compression", {})
+                })
+                
+                # Update the snapshot in database
+                snapshot.total_size = total_size_bytes
+                snapshot.snapshot_metadata = updated_metadata
+                db.commit()
+                
+                updated_count += 1
+                logger.info(f"Updated snapshot {snapshot.snapshot_id} with size {format_bytes(total_size_bytes)} and {format_number_with_commas(chunks_count)} chunks")
+                
+            except client.exceptions.NoSuchKey:
+                logger.debug(f"No header manifest found for snapshot {snapshot.snapshot_id} at {header_manifest_path}")
+                continue
+            except json.JSONDecodeError as e:
+                error_msg = f"Invalid JSON in header manifest for snapshot {snapshot.snapshot_id}: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                continue
+                
+        except Exception as e:
+            error_msg = f"Error updating snapshot {snapshot.snapshot_id}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+            continue
+    
+    return {
+        "status": "completed",
+        "updated_snapshots": updated_count,
+        "total_snapshots": len(snapshots),
+        "errors": errors
+    }
 
 
 @app.get("/protocols/{protocol_id}/snapshot-files/{snapshot_id:path}",    
