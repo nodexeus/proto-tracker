@@ -797,11 +797,13 @@ async def scan_protocol_snapshots(
                                             new_snapshots.append(new_snapshot)
 
                                             # Add to snapshot_info for tracking
-                                            snapshot_info[snapshot_key] = snapshot_metadata
-
-                                            logger.info(
-                                                f"Found and indexed snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
-                                            )
+                                            snapshot_info[snapshot_key] = {
+                                                "prefix": snapshot_key,
+                                                "manifest_path": manifest_path,
+                                                "paths": paths,
+                                                "created_at": response["LastModified"],
+                                                "metadata": snapshot_metadata
+                                            }
                                         except Exception as e:
                                             logger.error(f"Error saving snapshot to database: {str(e)}")
                                             db.rollback()
@@ -866,17 +868,38 @@ async def scan_protocol_snapshots(
             )
             new_snapshots.append(crud.create_snapshot_index(db, snapshot))
 
+        # Cleanup: Remove snapshots from database that no longer exist in S3
+        existing_snapshots = crud.get_protocol_snapshots(db, protocol_id, skip=0, limit=10000)
+        found_snapshot_ids = set(snapshot_info.keys())
+        removed_count = 0
+        
+        for existing_snapshot in existing_snapshots:
+            if existing_snapshot.snapshot_id not in found_snapshot_ids:
+                logger.info(f"Removing snapshot {existing_snapshot.snapshot_id} - no longer exists in S3")
+                db.delete(existing_snapshot)
+                removed_count += 1
+        
+        if removed_count > 0:
+            db.commit()
+            logger.info(f"Removed {removed_count} snapshots that no longer exist in S3")
+
         logger.info(f"Scan summary:")
         logger.info(f"- Total directories checked: {total_directories}")
         logger.info(f"- Total manifests checked: {total_manifests_checked}")
         logger.info(f"- Total snapshots found: {len(snapshot_info)}")
-        logger.info(f"- New snapshots indexed: {len(new_snapshots)}")
+        logger.info(f"- Snapshots processed: {len(new_snapshots)}")
+        logger.info(f"- Snapshots removed: {removed_count}")
 
         # Only warn if we checked directories but found no manifests
         if total_directories > 0 and not found_any_manifests:
             logger.warning("No valid manifest files were found in the checked directories")
 
-        return {"message": f"Indexed {len(new_snapshots)} new snapshots"}
+        return {
+            "message": f"Scan completed: {len(new_snapshots)} snapshots processed, {removed_count} removed",
+            "processed_snapshots": len(new_snapshots),
+            "removed_snapshots": removed_count,
+            "total_found": len(snapshot_info)
+        }
 
     except Exception as e:
         logger.error(f"Error scanning snapshots: {str(e)}")
