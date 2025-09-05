@@ -887,7 +887,7 @@ async def scan_protocol_snapshots(
             new_snapshots.append(crud.create_snapshot_index(db, snapshot))
 
         # Cleanup: Remove snapshots from database that no longer exist in S3
-        existing_snapshots = crud.get_protocol_snapshots(db, protocol_id, skip=0, limit=10000)
+        existing_snapshots = crud.list_protocol_snapshots(db, protocol_id, skip=0, limit=10000)
         found_snapshot_ids = set(snapshot_info.keys())
         removed_count = 0
         
@@ -928,19 +928,24 @@ async def scan_protocol_snapshots(
         )
 
 
-@app.get("/protocols/{protocol_id}/snapshots", response_model=List[schemas.SnapshotIndex])
-def get_protocol_snapshots(
+@app.get(
+    "/protocols/{protocol_id}/snapshots", 
+    response_model=list[schemas.SnapshotIndexSummary],
+   tags=["Snapshots"]
+)
+def list_protocol_snapshots(
     protocol_id: int, 
-    skip: int = Query(0, ge=0), 
-    limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    skip: int = 0,
+    limit: int = 100,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db),
 ):
     """Get snapshots for a specific protocol"""
     protocol = crud.get_protocol(db, protocol_id)
     if not protocol:
         raise HTTPException(status_code=404, detail="Protocol not found")
 
-    return crud.get_protocol_snapshots_summary(db, protocol_id, skip, limit)
+    return crud.list_protocol_snapshots(db, protocol_id, skip, limit)
 
 
 @app.post("/protocols/{protocol_id}/snapshots/update-metadata")
@@ -962,7 +967,7 @@ def update_snapshots_metadata(
     client = get_s3_client(db)
     
     # Get all snapshots for this protocol
-    snapshots = crud.get_protocol_snapshots(db, protocol_id, skip=0, limit=1000)
+    snapshots = crud.list_protocol_snapshots(db, protocol_id, skip=0, limit=1000)
     
     updated_count = 0
     errors = []
