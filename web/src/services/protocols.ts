@@ -65,7 +65,7 @@ export class ProtocolService extends ApiService {
    * Get all updates for a specific protocol via client associations
    */
   async getProtocolUpdates(protocolId: number): Promise<ProtocolUpdate[]> {
-    return this.get<ProtocolUpdate[]>(`/protocols/${protocolId}/updates`);
+    return this.get<ProtocolUpdate[]>(`/protocol_updates/${protocolId}`);
   }
 
   /**

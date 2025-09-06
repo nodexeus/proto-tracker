@@ -14,6 +14,27 @@ def get_protocol_updates(db: Session):
 def get_protocol_updates_by_name(db: Session, protocol_name: str):
     return db.query(models.ProtocolUpdates).filter(models.ProtocolUpdates.name == protocol_name).all()
 
+def get_protocol_updates_by_protocol_id(db: Session, protocol_id: int):
+    """Get all protocol updates for clients associated with a specific protocol"""
+    # Get all clients associated with this protocol
+    protocol_clients = get_protocol_clients(db, protocol_id)
+    
+    if not protocol_clients:
+        return []
+    
+    # Get all updates for the associated clients
+    client_ids = [client.id for client in protocol_clients]
+    updates = []
+    
+    for client_id in client_ids:
+        client_updates = get_protocol_updates_by_client_and_protocol(db, client_id)
+        updates.extend(client_updates)
+    
+    # Sort by date descending (newest first)
+    updates.sort(key=lambda x: x.date, reverse=True)
+    
+    return updates
+
 
 
 def get_protocol_updates_by_url(db: Session, url: str, name: str, client: str):
