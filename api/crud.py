@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text
+from sqlalchemy import text, or_
 from fastapi import HTTPException
 from datetime import datetime
 
@@ -20,6 +20,10 @@ def get_protocol_updates_by_protocol_id(db: Session, protocol_id: int):
     protocol_clients = get_protocol_clients(db, protocol_id)
     
     if not protocol_clients:
+        # Debug: Check if protocol exists but has no clients
+        protocol = get_protocol(db, protocol_id)
+        if protocol:
+            print(f"Protocol {protocol.name} exists but has no associated clients")
         return []
     
     # Get all updates for the associated clients
@@ -28,11 +32,13 @@ def get_protocol_updates_by_protocol_id(db: Session, protocol_id: int):
     
     for client_id in client_ids:
         client_updates = get_protocol_updates_by_client_and_protocol(db, client_id)
+        print(f"Client {client_id} has {len(client_updates)} updates")
         updates.extend(client_updates)
     
     # Sort by date descending (newest first)
     updates.sort(key=lambda x: x.date, reverse=True)
     
+    print(f"Total updates found for protocol {protocol_id}: {len(updates)}")
     return updates
 
 
@@ -520,8 +526,14 @@ def get_protocol_updates_by_client_and_protocol(db: Session, client_id: int, pro
 
 def get_protocol_updates_enriched(db: Session, skip: int = 0, limit: int = 100):
     """Get protocol updates with client and protocol information"""
+    # First try to join by client_id (for newer records)
+    # Then fall back to matching by client name (for older records)
     return (db.query(models.ProtocolUpdates)
-            .join(models.Client, models.ProtocolUpdates.client_id == models.Client.id, isouter=True)
+            .outerjoin(models.Client, 
+                      or_(
+                          models.ProtocolUpdates.client_id == models.Client.id,
+                          models.ProtocolUpdates.client == models.Client.name
+                      ))
             .options(
                 joinedload(models.ProtocolUpdates.client_entity)
             )

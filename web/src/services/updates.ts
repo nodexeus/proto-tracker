@@ -27,10 +27,16 @@ export class UpdatesService extends ApiService {
    * Get enriched protocol updates with client and protocol information
    */
   async getEnrichedProtocolUpdates(skip: number = 0, limit: number = 100): Promise<ProtocolUpdate[]> {
-    console.log('🔧 UpdatesService v2 - Using fallback to basic endpoint');
-    // Fallback to basic endpoint since enriched endpoint has issues
-    const allUpdates = await this.getProtocolUpdates();
-    return allUpdates.slice(skip, skip + limit);
+    console.log('🔧 UpdatesService v2 - Using enriched endpoint');
+    try {
+      const updates = await this.get<ProtocolUpdate[]>(`/protocol_updates/enriched?skip=${skip}&limit=${limit}`);
+      return updates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.warn('Enriched endpoint failed, falling back to basic endpoint:', error);
+      // Fallback to basic endpoint if enriched fails
+      const allUpdates = await this.getProtocolUpdates();
+      return allUpdates.slice(skip, skip + limit);
+    }
   }
 
   /**

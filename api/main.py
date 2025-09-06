@@ -1325,10 +1325,12 @@ def get_protocol_update(
             try:
                 protocol = crud.get_protocol(db, id_value)
                 if protocol:
-                    # Get all updates for this protocol
-                    protocol_updates = crud.get_protocol_updates_by_protocol_id(db, id_value)
+                    # Get updates by protocol name (not by client associations)
+                    protocol_updates = crud.get_protocol_updates_by_name(db, protocol.name)
+                    logger.info(f"Found {len(protocol_updates)} updates for protocol {protocol.name} (ID: {id_value})")
                     return protocol_updates
-            except:
+            except Exception as e:
+                logger.error(f"Error getting protocol updates for ID {id_value}: {e}")
                 pass
             
             # If not found as protocol ID, try as update ID
