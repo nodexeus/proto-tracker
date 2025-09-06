@@ -277,11 +277,15 @@ class BackgroundPollerService:
                         db.rollback()
                         raise e
                         
+                    # Store the client name in the name field for now
+                    # The lookup logic will handle protocol associations
+                    client_name = client.client or client.name or 'Unknown'
+                    
                     # Create protocol update
                     update_data = schemas.ProtocolUpdatesCreate(
-                        name=client.name or 'Unknown',
+                        name=client_name,  # Store client name for backward compatibility
                         title=name or tag_name,
-                        client=client.client or client.name or 'Unknown',
+                        client=client_name,
                         tag=tag_name,
                         date=published_at,
                         url=html_url,

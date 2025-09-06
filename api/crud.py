@@ -542,6 +542,17 @@ def get_protocol_updates_enriched(db: Session, skip: int = 0, limit: int = 100):
             .limit(limit)
             .all())
 
+def get_protocol_updates_by_client_name(db: Session, client_name: str):
+    """Get all protocol updates for a specific client name"""
+    return (db.query(models.ProtocolUpdates)
+            .filter(models.ProtocolUpdates.client == client_name)
+            .order_by(models.ProtocolUpdates.date.desc())
+            .all())
+
+def get_protocol_by_name(db: Session, protocol_name: str):
+    """Get protocol by name"""
+    return db.query(models.Protocol).filter(models.Protocol.name == protocol_name).first()
+
 # Admin user management functions
 def get_users_paginated(db: Session, page: int = 1, limit: int = 20):
     """Get paginated list of users"""

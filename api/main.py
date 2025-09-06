@@ -1321,14 +1321,30 @@ def get_protocol_update(
         if name_or_id.isdigit():
             id_value = int(name_or_id)
             
-            # First try as protocol ID to get all updates for that protocol
+            # First try as protocol ID to get all updates for that protocol's clients
             try:
                 protocol = crud.get_protocol(db, id_value)
                 if protocol:
-                    # Get updates by protocol name (not by client associations)
-                    protocol_updates = crud.get_protocol_updates_by_name(db, protocol.name)
-                    logger.info(f"Found {len(protocol_updates)} updates for protocol {protocol.name} (ID: {id_value})")
-                    return protocol_updates
+                    # Get all clients associated with this protocol
+                    protocol_clients = crud.get_protocol_clients(db, id_value)
+                    logger.info(f"Protocol {protocol.name} (ID: {id_value}) has {len(protocol_clients)} clients: {[c.name for c in protocol_clients]}")
+                    
+                    # Get all updates for each client associated with this protocol
+                    all_updates = []
+                    for client in protocol_clients:
+                        # Get updates by client name (stored in the 'client' field)
+                        client_name = client.client or client.name
+                        if client_name:
+                            client_updates = crud.get_protocol_updates_by_client_name(db, client_name)
+                            all_updates.extend(client_updates)
+                            logger.info(f"Found {len(client_updates)} updates for client {client_name}")
+                    
+                    # Remove duplicates and sort by date
+                    unique_updates = list({update.id: update for update in all_updates}.values())
+                    unique_updates.sort(key=lambda x: x.date, reverse=True)
+                    
+                    logger.info(f"Found {len(unique_updates)} total unique updates for protocol {protocol.name}")
+                    return unique_updates
             except Exception as e:
                 logger.error(f"Error getting protocol updates for ID {id_value}: {e}")
                 pass
@@ -1341,13 +1357,31 @@ def get_protocol_update(
             return db_protocol_update
 
         # Otherwise, treat the identifier as a string (protocol_name)
-        db_protocol_update_by_name = crud.get_protocol_updates_by_name(
-            db, protocol_name=name_or_id
-        )
-        if not db_protocol_update_by_name:
-            logger.warning(f"Protocol not found for {name_or_id}")
-            raise HTTPException(status_code=404, detail="Protocol not found")
-        return db_protocol_update_by_name
+        # Find protocol by name and get its clients' updates
+        protocol = crud.get_protocol_by_name(db, name_or_id)
+        if protocol:
+            # Get all clients associated with this protocol
+            protocol_clients = crud.get_protocol_clients(db, protocol.id)
+            logger.info(f"Protocol {protocol.name} has {len(protocol_clients)} clients: {[c.name for c in protocol_clients]}")
+            
+            # Get all updates for each client associated with this protocol
+            all_updates = []
+            for client in protocol_clients:
+                client_name = client.client or client.name
+                if client_name:
+                    client_updates = crud.get_protocol_updates_by_client_name(db, client_name)
+                    all_updates.extend(client_updates)
+                    logger.info(f"Found {len(client_updates)} updates for client {client_name}")
+            
+            # Remove duplicates and sort by date
+            unique_updates = list({update.id: update for update in all_updates}.values())
+            unique_updates.sort(key=lambda x: x.date, reverse=True)
+            
+            logger.info(f"Found {len(unique_updates)} total unique updates for protocol {protocol.name}")
+            return unique_updates
+        
+        logger.warning(f"Protocol not found for {name_or_id}")
+        raise HTTPException(status_code=404, detail="Protocol not found")
 
 
 # @app.get("/protocol_updates/{protocol_name}", response_model=list[schemas.ProtocolUpdatesBase])
@@ -1995,6 +2029,47 @@ def get_protocol_updates_enriched(
         logger.info("Getting enriched protocol updates")
         updates = crud.get_protocol_updates_enriched(db, skip, limit)
         return updates
+
+@app.post(
+    "/admin/fix-protocol-update-names",
+    tags=["Admin"],
+    summary="Fix protocol update names to use protocol names instead of client names"
+)
+def fix_protocol_update_names(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Fix existing protocol updates to have correct protocol names instead of client names"""
+    with timer("fix_protocol_update_names"):
+        logger.info(f"Admin {admin_user.email} fixing protocol update names")
+        
+        # Get all protocol updates
+        updates = db.query(models.ProtocolUpdates).all()
+        fixed_count = 0
+        
+        for update in updates:
+            # Try to find a client with this name
+            client = db.query(models.Client).filter(
+                or_(
+                    models.Client.name == update.name,
+                    models.Client.client == update.name
+                )
+            ).first()
+            
+            if client and client.protocols:
+                # Get the protocol name from the client's first associated protocol
+                protocol_name = client.protocols[0].name
+                if protocol_name != update.name:
+                    logger.info(f"Fixing update {update.id}: '{update.name}' -> '{protocol_name}'")
+                    update.name = protocol_name
+                    # Also set the client_id if not already set
+                    if not update.client_id:
+                        update.client_id = client.id
+                    fixed_count += 1
+        
+        db.commit()
+        logger.info(f"Fixed {fixed_count} protocol update names")
+        return {"fixed_count": fixed_count, "message": f"Fixed {fixed_count} protocol update names"}
 
 # Admin System endpoints
 # @app.get(
