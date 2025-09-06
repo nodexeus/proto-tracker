@@ -869,7 +869,7 @@ async def scan_protocol_snapshots(
             new_snapshots.append(crud.create_snapshot_index(db, snapshot))
 
         # Cleanup: Remove snapshots from database that no longer exist in S3
-        existing_snapshots = crud.list_protocol_snapshots(db, protocol_id, skip=0, limit=10000)
+        existing_snapshots = crud.get_protocol_snapshots(db, protocol_id, skip=0, limit=10000)
         found_snapshot_ids = set(snapshot_info.keys())
         removed_count = 0
         
