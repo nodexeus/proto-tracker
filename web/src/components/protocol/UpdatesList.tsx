@@ -151,7 +151,7 @@ function UpdateRow({ update }: UpdateRowProps) {
       <Table.Tr>
         <Table.Td colSpan={5} p={0}>
           <Collapse in={expanded}>
-            <Card withBorder={false} p="md" bg="gray.0" radius={0}>
+            <Card withBorder={false} p="md" bg="dark.6" radius={0}>
               <Stack gap="sm">
                 {/* Update Details */}
                 <Group wrap="nowrap">
@@ -311,26 +311,57 @@ export function UpdatesList({ updates }: UpdatesListProps) {
     );
   }
 
+  // Group updates by client
+  const updatesByClient = updates.reduce((acc, update) => {
+    const clientName = update.client || 'Unknown';
+    if (!acc[clientName]) {
+      acc[clientName] = [];
+    }
+    acc[clientName].push(update);
+    return acc;
+  }, {} as Record<string, ProtocolUpdate[]>);
+
+  // Sort clients by name and sort updates within each client by date
+  const sortedClients = Object.keys(updatesByClient).sort();
+
   return (
-    <Card withBorder>
-      <Table highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Update</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Client</Table.Th>
-            <Table.Th>Date</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {updates
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .map((update) => (
-              <UpdateRow key={update.id} update={update} />
-            ))}
-        </Table.Tbody>
-      </Table>
-    </Card>
+    <Stack gap="md">
+      {sortedClients.map((clientName) => {
+        const clientUpdates = updatesByClient[clientName].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        return (
+          <Card key={clientName} withBorder>
+            <Stack gap="md">
+              <Group justify="space-between" align="center">
+                <Text fw={600} size="lg">
+                  {clientName}
+                </Text>
+                <Badge variant="light" size="sm">
+                  {clientUpdates.length} update{clientUpdates.length !== 1 ? 's' : ''}
+                </Badge>
+              </Group>
+
+              <Table highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Update</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Date</Table.Th>
+                    <Table.Th>Actions</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {clientUpdates.map((update) => (
+                    <UpdateRow key={update.id} update={update} />
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Stack>
+          </Card>
+        );
+      })}
+    </Stack>
   );
 }
