@@ -758,61 +758,43 @@ async def scan_protocol_snapshots(
                                         version_num = version_dir.rstrip("/").split("/")[-1]
 
                                         # Create snapshot record in database
-                                        try:
-                                            snapshot_key = f"{protocol_dir}{version_num}"
-                                            snapshot_metadata = {
-                                                "version": int(version_num),
-                                                "manifest_path": manifest_path,
-                                                "total_parts": total_parts,
-                                                "paths": paths,
-                                                "file_tree": file_tree,  # Add hierarchical file structure
-                                                "client": client_name,
-                                                "network": network,
-                                                "node_type": node_type,
-                                                "version_tag": version
-                                            }
+                                        snapshot_key = f"{protocol_dir}{version_num}"
+                                        snapshot_metadata = {
+                                            "version": int(version_num),
+                                            "manifest_path": manifest_path,
+                                            "total_parts": total_parts,
+                                            "paths": paths,
+                                            "file_tree": file_tree,  # Add hierarchical file structure
+                                            "client": client_name,
+                                            "network": network,
+                                            "node_type": node_type,
+                                            "version_tag": version
+                                        }
+                                        
+                                        # Add header data if available
+                                        if header_data:
+                                            total_size_bytes = header_data.get("total_size", 0)
+                                            chunks_count = header_data.get("chunks", 0)
                                             
-                                            # Add header data if available
-                                            if header_data:
-                                                total_size_bytes = header_data.get("total_size", 0)
-                                                chunks_count = header_data.get("chunks", 0)
-                                                
-                                                snapshot_metadata.update({
-                                                    "total_size_bytes": total_size_bytes,
-                                                    "total_size_formatted": format_bytes(total_size_bytes),
-                                                    "chunks_count": chunks_count,
-                                                    "chunks_formatted": format_number_with_commas(chunks_count),
-                                                    "compression": header_data.get("compression", {})
-                                                })
+                                            snapshot_metadata.update({
+                                                "total_size_bytes": total_size_bytes,
+                                                "total_size_formatted": format_bytes(total_size_bytes),
+                                                "chunks_count": chunks_count,
+                                                "chunks_formatted": format_number_with_commas(chunks_count),
+                                                "compression": header_data.get("compression", {})
+                                            })
 
-                                            # Use actual total size from header data if available
-                                            actual_total_size = header_data.get("total_size", 0) if header_data else 0
-                                            
-                                            # Always add to snapshot_info for cleanup logic
-                                            snapshot_info[snapshot_key] = {
-                                                "prefix": snapshot_key,
-                                                "manifest_path": manifest_path,
-                                                "paths": paths,
-                                                "created_at": response["LastModified"],
-                                                "metadata": snapshot_metadata
-                                            }
-                                            
-                                            new_snapshot = models.SnapshotIndex(
-                                                protocol_id=protocol_id,
-                                                snapshot_id=snapshot_key,
-                                                index_file_path=manifest_path,
-                                                file_count=len(paths),
-                                                total_size=actual_total_size,
-                                                created_at=response["LastModified"],
-                                                snapshot_metadata=snapshot_metadata
-                                            )
-                                            db.add(new_snapshot)
-                                            db.commit()
-                                            new_snapshots.append(new_snapshot)
-                                        except Exception as e:
-                                            logger.error(f"Error saving snapshot to database: {str(e)}")
-                                            db.rollback()
-                                            continue
+                                        # Use actual total size from header data if available
+                                        actual_total_size = header_data.get("total_size", 0) if header_data else 0
+                                        
+                                        # Always add to snapshot_info for cleanup logic
+                                        snapshot_info[snapshot_key] = {
+                                            "prefix": snapshot_key,
+                                            "manifest_path": manifest_path,
+                                            "paths": paths,
+                                            "created_at": response["LastModified"],
+                                            "metadata": snapshot_metadata
+                                        }
                                         logger.info(
                                             f"Found snapshot: {snapshot_key} (version {version_num}) with {len(paths)} paths and {total_parts} parts"
                                         )
@@ -877,7 +859,7 @@ async def scan_protocol_snapshots(
             # Create new snapshot index
             snapshot = schemas.SnapshotIndexCreate(
                 protocol_id=protocol_id,
-                snapshot_id=info["prefix"],  # Use the full prefix as the snapshot ID
+                snapshot_id=snapshot_key,  # Use the snapshot_key as the snapshot ID
                 index_file_path=info["manifest_path"],
                 file_count=len(info["paths"]),
                 total_size=info["metadata"].get("total_size_bytes", 0),
