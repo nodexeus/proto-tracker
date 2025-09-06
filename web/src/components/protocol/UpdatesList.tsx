@@ -17,6 +17,8 @@ import {
   Collapse,
   ActionIcon,
   Tooltip,
+  Pagination,
+  Center,
 } from '@mantine/core';
 import {
   IconExternalLink,
@@ -92,9 +94,6 @@ function UpdateRow({ update }: UpdateRowProps) {
           <Badge size="sm" {...getBadgeProps()} />
         </Table.Td>
 
-        <Table.Td>
-          <Text size="sm">{update.client}</Text>
-        </Table.Td>
 
         <Table.Td>
           <Text size="sm">{formatDate(update.date)}</Text>
@@ -292,6 +291,63 @@ function UpdateRow({ update }: UpdateRowProps) {
   );
 }
 
+interface ClientCardProps {
+  clientName: string;
+  clientUpdates: ProtocolUpdate[];
+}
+
+function ClientCard({ clientName, clientUpdates }: ClientCardProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const updatesPerPage = 10;
+  
+  const totalPages = Math.ceil(clientUpdates.length / updatesPerPage);
+  const startIndex = (currentPage - 1) * updatesPerPage;
+  const endIndex = startIndex + updatesPerPage;
+  const paginatedUpdates = clientUpdates.slice(startIndex, endIndex);
+
+  return (
+    <Card key={clientName} withBorder>
+      <Stack gap="md">
+        <Group justify="space-between" align="center">
+          <Text fw={600} size="lg">
+            {clientName}
+          </Text>
+          <Badge variant="light" size="sm">
+            {clientUpdates.length} update{clientUpdates.length !== 1 ? 's' : ''}
+          </Badge>
+        </Group>
+
+        <Table highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Version</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {paginatedUpdates.map((update) => (
+              <UpdateRow key={update.id} update={update} />
+            ))}
+          </Table.Tbody>
+        </Table>
+
+        {totalPages > 1 && (
+          <Center>
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+            />
+          </Center>
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
 export function UpdatesList({ updates }: UpdatesListProps) {
   if (updates.length === 0) {
     return (
@@ -313,7 +369,7 @@ export function UpdatesList({ updates }: UpdatesListProps) {
 
   // Group updates by client
   const updatesByClient = updates.reduce((acc, update) => {
-    const clientName = update.client || 'Unknown';
+    const clientName = update.client.toUpperCase() || 'Unknown';
     if (!acc[clientName]) {
       acc[clientName] = [];
     }
@@ -332,34 +388,11 @@ export function UpdatesList({ updates }: UpdatesListProps) {
         );
 
         return (
-          <Card key={clientName} withBorder>
-            <Stack gap="md">
-              <Group justify="space-between" align="center">
-                <Text fw={600} size="lg">
-                  {clientName}
-                </Text>
-                <Badge variant="light" size="sm">
-                  {clientUpdates.length} update{clientUpdates.length !== 1 ? 's' : ''}
-                </Badge>
-              </Group>
-
-              <Table highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Update</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Date</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {clientUpdates.map((update) => (
-                    <UpdateRow key={update.id} update={update} />
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Stack>
-          </Card>
+          <ClientCard
+            key={clientName}
+            clientName={clientName}
+            clientUpdates={clientUpdates}
+          />
         );
       })}
     </Stack>
