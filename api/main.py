@@ -948,6 +948,37 @@ def list_protocol_snapshots(
     return crud.list_protocol_snapshots(db, protocol_id, skip, limit)
 
 
+@app.get("/protocols/{protocol_id}/updates", response_model=List[schemas.ProtocolUpdates])
+def get_protocol_updates(
+    protocol_id: int,
+    api_key: str = Security(get_api_key),
+    db: Session = Depends(get_db),
+):
+    """Get all updates for clients associated with a specific protocol"""
+    protocol = crud.get_protocol(db, protocol_id)
+    if not protocol:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    
+    # Get all clients associated with this protocol
+    protocol_clients = crud.get_protocol_clients(db, protocol_id)
+    
+    if not protocol_clients:
+        return []
+    
+    # Get all updates for the associated clients
+    client_ids = [client.id for client in protocol_clients]
+    updates = []
+    
+    for client_id in client_ids:
+        client_updates = crud.get_protocol_updates_by_client_and_protocol(db, client_id)
+        updates.extend(client_updates)
+    
+    # Sort by date descending (newest first)
+    updates.sort(key=lambda x: x.date, reverse=True)
+    
+    return updates
+
+
 @app.post("/protocols/{protocol_id}/snapshots/update-metadata")
 def update_snapshots_metadata(
     protocol_id: int,

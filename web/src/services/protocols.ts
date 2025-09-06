@@ -65,33 +65,7 @@ export class ProtocolService extends ApiService {
    * Get all updates for a specific protocol via client associations
    */
   async getProtocolUpdates(protocolId: number): Promise<ProtocolUpdate[]> {
-    try {
-      // First get all clients associated with this protocol
-      const clientService = new (await import('./clients')).ClientService(this.config);
-      const protocolClients = await clientService.getProtocolClients(protocolId);
-      
-      if (protocolClients.length === 0) {
-        return [];
-      }
-
-      // Get all updates for all associated clients
-      const allUpdates = await this.getAllProtocolUpdates();
-      
-      // Filter updates to only include those from clients associated with this protocol
-      const clientIds = protocolClients.map(client => client.id);
-      const protocolUpdates = allUpdates.filter(update => 
-        update.client && protocolClients.some(client => 
-          client.client === update.client || client.name === update.client
-        )
-      );
-
-      // Sort by date descending (newest first)
-      return protocolUpdates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    } catch (error) {
-      console.error('Failed to get protocol updates via client associations:', error);
-      // Fallback to empty array
-      return [];
-    }
+    return this.get<ProtocolUpdate[]>(`/protocols/${protocolId}/updates`);
   }
 
   /**
