@@ -6,6 +6,7 @@ import json
 import string
 import asyncio
 import secrets
+import base64
 from datetime import datetime
 from contextlib import asynccontextmanager, contextmanager
 
