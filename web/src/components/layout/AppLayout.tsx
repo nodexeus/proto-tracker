@@ -259,7 +259,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <AppShell.Section>
             <Divider my="sm" />
             <Text size="xs" c="dimmed" ta="center">
-              Protocol Tracker v1.0.0
+              Protocol Tracker v1.0.1
             </Text>
           </AppShell.Section>
         </AppShell.Navbar>

@@ -101,8 +101,8 @@ class BackgroundScannerService:
                 "is_running": self.is_running,
                 "task_exists": self.task is not None,
                 "task_alive": self.task is not None and not self.task.done() if self.task else False,
-                "task_cancelled": self.task.cancelled() if self.task else False,
-                "task_done": self.task.done() if self.task else False
+                "task_cancelled": self.task.cancelled() if self.task is not None else False,
+                "task_done": self.task.done() if self.task is not None else False
             },
             "system_config": {
                 "exists": system_config is not None,

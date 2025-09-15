@@ -1,24 +1,26 @@
-from typing import Union, Annotated, List, Dict, Any
-
-from fastapi import Depends, FastAPI, HTTPException, status, Security, File, UploadFile, Request, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from fastapi.security import OAuth2PasswordBearer, APIKeyHeader, APIKeyQuery
-import base64
-from PIL import Image
-from io import BytesIO
-import logging
+from typing import Union, Annotated, List, Dict, Any, Optional
 import time
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import contextmanager
-from datetime import datetime
-import secrets
-import string
+import logging
 import os
+import json
+import string
+import asyncio
+import secrets
+from datetime import datetime
+from contextlib import asynccontextmanager, contextmanager
+
+from fastapi import FastAPI, Depends, HTTPException, Security, UploadFile, File, Form, status, Request
+from fastapi.security import APIKeyHeader
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+import requests as python_requests
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+
 import crud, models, schemas
 from database import SessionLocal, engine
 from utils.formatting import format_bytes, format_number_with_commas
@@ -75,21 +77,11 @@ except Exception as e:
     models.Base.metadata.create_all(bind=engine)
     logger.info("Database tables created successfully!")
 
-app = FastAPI(
-    title="ProtoTracker API",
-    description="Nodexeus Protocol Tracker",
-    version="1.0.1",
-    swagger_ui_parameters={"syntaxHighlight.theme": "nord"},
-    openapi_version="3.0.2",
-)
-
-app.openapi_version = "3.0.2"
-
-# Startup event to auto-start background poller if it was previously enabled
-@app.on_event("startup")
-async def startup_event():
-    """Start background services if they were previously enabled"""
-    logger.info("=== STARTUP EVENT TRIGGERED ===")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan context manager for startup and shutdown events"""
+    # Startup
+    logger.info("=== APPLICATION STARTUP ===")
     db = next(get_db())
     try:
         # Auto-start background poller if enabled
@@ -146,6 +138,23 @@ async def startup_event():
             
     finally:
         db.close()
+    
+    # Yield control to the application
+    yield
+    
+    # Shutdown (if needed)
+    logger.info("=== APPLICATION SHUTDOWN ===")
+
+app = FastAPI(
+    title="ProtoTracker API",
+    description="Nodexeus Protocol Tracker",
+    version="1.0.1",
+    swagger_ui_parameters={"syntaxHighlight.theme": "nord"},
+    openapi_version="3.0.2",
+    lifespan=lifespan,
+)
+
+app.openapi_version = "3.0.2"
 
 # Add CORS middleware
 app.add_middleware(
@@ -297,7 +306,6 @@ def verify_google_token(access_token: str) -> dict:
             )
         
         # Use the access token to fetch user info from Google's userinfo endpoint
-        import requests as python_requests
         
         response = python_requests.get(
             'https://www.googleapis.com/oauth2/v2/userinfo',
@@ -3194,7 +3202,6 @@ async def proxy_rpc_request(
 ):
     """Proxy RPC requests to external servers to bypass CORS restrictions"""
     with timer("proxy_rpc_request"):
-        import requests as python_requests
         
         # Get the request body
         body = await request.json()
