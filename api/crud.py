@@ -6,6 +6,10 @@ from datetime import datetime
 import models, schemas
 from pprint import pprint
 
+import logging
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 
 def get_protocol_updates(db: Session):
     return (db.query(models.ProtocolUpdates).all())
@@ -23,7 +27,7 @@ def get_protocol_updates_by_protocol_id(db: Session, protocol_id: int):
         # Debug: Check if protocol exists but has no clients
         protocol = get_protocol(db, protocol_id)
         if protocol:
-            print(f"Protocol {protocol.name} exists but has no associated clients")
+            logger.debug(f"Protocol {protocol.name} exists but has no associated clients")
         return []
     
     # Get all updates for the associated clients
@@ -32,13 +36,13 @@ def get_protocol_updates_by_protocol_id(db: Session, protocol_id: int):
     
     for client_id in client_ids:
         client_updates = get_protocol_updates_by_client_and_protocol(db, client_id)
-        print(f"Client {client_id} has {len(client_updates)} updates")
+        logger.debug(f"Client {client_id} has {len(client_updates)} updates")
         updates.extend(client_updates)
     
     # Sort by date descending (newest first)
     updates.sort(key=lambda x: x.date, reverse=True)
     
-    print(f"Total updates found for protocol {protocol_id}: {len(updates)}")
+    logger.debug(f"Total updates found for protocol {protocol_id}: {len(updates)}")
     return updates
 
 
@@ -218,7 +222,7 @@ def patch_protocol_updates(db: Session, protocol: schemas.ProtocolUpdates):
     if hasattr(protocol, 'github_url') and protocol.github_url is not None:
         protocol_update.github_url = protocol.github_url
     
-    print(f"Updated protocol update {protocol_update.id} - preserving protocol name: {protocol_update.name}")
+    logger.debug(f"Updated protocol update {protocol_update.id} - preserving protocol name: {protocol_update.name}")
     db.add(protocol_update)
     db.commit()
     db.refresh(protocol_update)

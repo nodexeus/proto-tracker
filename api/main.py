@@ -28,13 +28,8 @@ from alembic.config import Config
 from alembic import command
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    force=True
-)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 @contextmanager
@@ -46,7 +41,7 @@ def timer(name: str):
 
 
 # Run database migrations at startup
-logger.info("Running database migrations...")
+logger.info(f"Running database migrations...")
 try:
     alembic_cfg = Config("alembic.ini")
     # Set the database URL in the config
@@ -68,20 +63,20 @@ try:
         logger.info(f"Current database revision: {current_rev}")
     
     command.upgrade(alembic_cfg, "head")
-    logger.info("Database migrations completed successfully!")
+    logger.info(f"Database migrations completed successfully!")
 except Exception as e:
     logger.error(f"Failed to run database migrations: {e}")
     logger.exception("Migration error details:")
     # Still create tables as fallback for new installations
-    logger.info("Falling back to creating database tables...")
+    logger.info(f"Falling back to creating database tables...")
     models.Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created successfully!")
+    logger.info(f"Database tables created successfully!")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for startup and shutdown events"""
     # Startup
-    logger.info("=== APPLICATION STARTUP ===")
+    logger.info(f"=== APPLICATION STARTUP ===")
     db = next(get_db())
     try:
         # Auto-start background poller if enabled
@@ -90,10 +85,10 @@ async def lifespan(app: FastAPI):
             
             github_config = crud.get_github_config(db)
             if github_config and github_config.poller_enabled and github_config.api_key:
-                logger.info("Auto-starting background poller (was previously enabled)")
+                logger.info(f"Auto-starting background poller (was previously enabled)")
                 await background_poller.start(db)
             else:
-                logger.info("Background poller not auto-started (not previously enabled or no API key)")
+                logger.info(f"Background poller not auto-started (not previously enabled or no API key)")
         except Exception as e:
             logger.error(f"Error during startup auto-start of background poller: {e}")
         
@@ -104,7 +99,7 @@ async def lifespan(app: FastAPI):
             system_config = crud.get_system_config(db)
             s3_config = crud.get_s3_config(db)
             
-            logger.info("=== BACKGROUND SCANNER STARTUP CHECK ===")
+            logger.info(f"=== BACKGROUND SCANNER STARTUP CHECK ===")
             logger.info(f"  - System config exists: {system_config is not None}")
             logger.info(f"  - Auto scan enabled: {system_config.auto_scan_enabled if system_config else 'N/A'}")
             logger.info(f"  - S3 config exists: {s3_config is not None}")
@@ -112,7 +107,7 @@ async def lifespan(app: FastAPI):
             
             if system_config and system_config.auto_scan_enabled:
                 if s3_config and s3_config.bucket_name:
-                    logger.info("=== ATTEMPTING TO AUTO-START BACKGROUND SCANNER ===")
+                    logger.info(f"=== ATTEMPTING TO AUTO-START BACKGROUND SCANNER ===")
                     start_result = await background_scanner.start(db)
                     logger.info(f"=== BACKGROUND SCANNER START RESULT: {start_result} ===")
                     
@@ -126,11 +121,11 @@ async def lifespan(app: FastAPI):
                     elif not s3_config.bucket_name:
                         logger.warning("  - S3 configuration exists but bucket_name is empty")
             else:
-                logger.info("Background scanner not auto-started (auto-scan not enabled)")
+                logger.info(f"Background scanner not auto-started (auto-scan not enabled)")
                 if not system_config:
                     logger.warning("  - No system configuration found in database")
                 elif not system_config.auto_scan_enabled:
-                    logger.info("  - Auto scan is disabled in system settings")
+                    logger.info(f"  - Auto scan is disabled in system settings")
         except Exception as e:
             logger.error(f"Error during startup auto-start of background scanner: {e}")
             import traceback
@@ -143,8 +138,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown (if needed)
-    logger.info("=== APPLICATION SHUTDOWN ===")
+    logger.info(f"=== APPLICATION SHUTDOWN ===")
 
+logger.info(f"=== CREATING FASTAPI APP ===")
 app = FastAPI(
     title="ProtoTracker API",
     description="Nodexeus Protocol Tracker",
@@ -153,10 +149,12 @@ app = FastAPI(
     openapi_version="3.0.2",
     lifespan=lifespan,
 )
+logger.info(f"=== FASTAPI APP CREATED SUCCESSFULLY ===")
 
 app.openapi_version = "3.0.2"
 
 # Add CORS middleware
+logger.info(f"=== ADDING CORS MIDDLEWARE ===")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, replace with specific origins
@@ -164,6 +162,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+logger.info(f"=== CORS MIDDLEWARE ADDED ===")
 
 
 @app.middleware("http")
@@ -381,7 +380,7 @@ def create_or_get_user_from_google(db: Session, google_user_info: dict) -> model
             user_count = db.query(models.Users).count()
             if user_count == 0:
                 user.is_admin = True
-                logger.info("First user created - granted admin privileges")
+                logger.info(f"First user created - granted admin privileges")
             
             db.add(user)
         
@@ -870,17 +869,17 @@ async def scan_protocol_snapshots(
                 existing.indexed_at = datetime.utcnow()
                 
                 # Debug logging to check metadata content
-                print(f"[SCAN] Storing metadata for {snapshot_key}: {info['metadata'].keys() if info['metadata'] else 'None'}", flush=True)
+                logger.debug(f"[SCAN] Storing metadata for {snapshot_key}: {info['metadata'].keys() if info['metadata'] else 'None'}", flush=True)
                 if info["metadata"] and "chunks_formatted" in info["metadata"]:
-                    print(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}", flush=True)
+                    logger.debug(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}", flush=True)
                 
                 db.commit()
                 
                 # Verify the metadata was actually stored
                 db.refresh(existing)
-                print(f"[SCAN] After commit, snapshot_metadata is: {existing.snapshot_metadata is not None}", flush=True)
+                logger.debug(f"[SCAN] After commit, snapshot_metadata is: {existing.snapshot_metadata is not None}", flush=True)
                 if existing.snapshot_metadata:
-                    print(f"[SCAN] Metadata keys after commit: {existing.snapshot_metadata.keys()}", flush=True)
+                    logger.debug(f"[SCAN] Metadata keys after commit: {existing.snapshot_metadata.keys()}", flush=True)
                 
                 new_snapshots.append(existing)
                 logger.info(f"Updated snapshot {snapshot_key} with size {format_bytes(existing.total_size)}")
@@ -1296,7 +1295,7 @@ async def read_protocols_update(
     api_key: str = Security(get_api_key), db: Session = Depends(get_db)
 ):
     with timer("read_protocols_update"):
-        logger.info("Fetching all protocol updates")
+        logger.info(f"Fetching all protocol updates")
         protocol_updates = crud.get_protocol_updates(db)
         return protocol_updates
 
@@ -1513,7 +1512,7 @@ def read_protocols(
     db: Session = Depends(get_db),
 ):
     with timer("read_protocols"):
-        logger.info("Fetching all protocols")
+        logger.info(f"Fetching all protocols")
         protocols = crud.get_protocols(db, skip=skip, limit=limit)
         
         # Convert binary logo data to base64 for response
@@ -1807,7 +1806,7 @@ def read_clients(
     db: Session = Depends(get_db),
 ):
     with timer("read_clients"):
-        logger.info("Fetching all clients")
+        logger.info(f"Fetching all clients")
         clients = crud.get_clients(db, skip=skip, limit=limit)
         
         # Convert binary logo data to base64 for response
@@ -2039,7 +2038,7 @@ def get_protocol_updates_enriched(
     db: Session = Depends(get_db),
 ):
     with timer("get_protocol_updates_enriched"):
-        logger.info("Getting enriched protocol updates")
+        logger.info(f"Getting enriched protocol updates")
         updates = crud.get_protocol_updates_enriched(db, skip, limit)
         return updates
 
@@ -3053,7 +3052,7 @@ def login_with_google(
 ):
     """Login with Google OAuth"""
     with timer("google_oauth_login"):
-        logger.info("Processing Google OAuth login")
+        logger.info(f"Processing Google OAuth login")
         
         # Verify Google access token
         google_user_info = verify_google_token(oauth_request.access_token)
