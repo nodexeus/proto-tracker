@@ -120,6 +120,35 @@ export class ProtocolService extends ApiService {
   }
 
   /**
+   * Get snapshot prefixes for a protocol
+   */
+  async getProtocolSnapshotPrefixes(protocolId: number): Promise<Array<{
+    id: number;
+    protocol_id: number;
+    prefix: string;
+    client_name?: string;
+    network?: string;
+    node_type?: string;
+    description?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  }>> {
+    return this.get<Array<{
+      id: number;
+      protocol_id: number;
+      prefix: string;
+      client_name?: string;
+      network?: string;
+      node_type?: string;
+      description?: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    }>>(`/protocols/${protocolId}/snapshot-prefixes`);
+  }
+
+  /**
    * Get snapshot file tree
    */
   async getSnapshotFileTree(protocolId: number, snapshotId: string): Promise<Record<string, unknown>> {

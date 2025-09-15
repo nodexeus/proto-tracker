@@ -22,6 +22,8 @@ import { IconUpload, IconX, IconPhoto, IconAlertCircle, IconCheck, IconPlus, Ico
 import type { Protocol, ProtocolCreate, ProtocolUpdateData } from '../../types';
 import { useClients, useProtocolClients, useAddClientToProtocol, useRemoveClientFromProtocol } from '../../hooks';
 import { useAuth } from '../../hooks/useAuth';
+import { ProtocolService } from '../../services/protocols';
+import { getApiConfig } from '../../utils';
 import {
   validateProtocolName,
   validateChainId,
@@ -61,6 +63,8 @@ export function ProtocolForm({
   mode,
 }: ProtocolFormProps) {
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [loadingPrefixes, setLoadingPrefixes] = useState(false);
+  const { user } = useAuth();
   
   // Fetch available clients
   const { data: clients } = useClients();
@@ -127,9 +131,37 @@ export function ProtocolForm({
           public_rpc: protocol.public_rpc || '',
           proto_family: protocol.proto_family || '',
           bpm: protocol.bpm ?? '',
-          snapshot_prefixes: protocol.snapshot_prefix ? [protocol.snapshot_prefix] : [''],
+          snapshot_prefixes: [''], // Will be loaded separately
           logo: protocol.logo || '',
         });
+        
+        // Load snapshot prefixes for editing
+        const loadSnapshotPrefixes = async () => {
+          if (!user?.apiKey) return;
+          
+          setLoadingPrefixes(true);
+          try {
+            const apiConfig = getApiConfig(user.apiKey);
+            const protocolService = new ProtocolService(apiConfig);
+            const prefixes = await protocolService.getProtocolSnapshotPrefixes(protocol.id);
+            
+            if (prefixes.length > 0) {
+              form.setFieldValue('snapshot_prefixes', prefixes.map(p => p.prefix));
+            } else {
+              // Fall back to legacy snapshot_prefix if no new prefixes found
+              form.setFieldValue('snapshot_prefixes', protocol.snapshot_prefix ? [protocol.snapshot_prefix] : ['']);
+            }
+          } catch (error) {
+            console.error('Failed to load snapshot prefixes:', error);
+            // Fall back to legacy snapshot_prefix
+            form.setFieldValue('snapshot_prefixes', protocol.snapshot_prefix ? [protocol.snapshot_prefix] : ['']);
+          } finally {
+            setLoadingPrefixes(false);
+          }
+        };
+        
+        loadSnapshotPrefixes();
+        
         // Set selected clients if editing
         if (protocolClients) {
           setSelectedClientIds(protocolClients.map(client => client.id.toString()));
@@ -140,7 +172,7 @@ export function ProtocolForm({
         setSelectedClientIds([]);
       }
     }
-  }, [opened, protocol, mode, protocolClients]); // Removed 'form' from dependencies
+  }, [opened, protocol, mode, protocolClients, user?.apiKey]); // Removed 'form' from dependencies
 
   const handleLogoUpload = useCallback((files: File[]) => {
     const file = files[0];
