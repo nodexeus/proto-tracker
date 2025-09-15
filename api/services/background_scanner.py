@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import models, schemas, crud
 from database import get_db
 from utils.formatting import format_bytes, format_number_with_commas
+from main import get_s3_client
 
 logger = logging.getLogger(__name__)
 
