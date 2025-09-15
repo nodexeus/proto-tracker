@@ -31,7 +31,7 @@ from alembic.config import Config
 from alembic import command
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -872,17 +872,17 @@ async def scan_protocol_snapshots(
                 existing.indexed_at = datetime.utcnow()
                 
                 # Debug logging to check metadata content
-                logger.debug(f"[SCAN] Storing metadata for {snapshot_key}: {info['metadata'].keys() if info['metadata'] else 'None'}", flush=True)
+                logger.debug(f"[SCAN] Storing metadata for {snapshot_key}: {info['metadata'].keys() if info['metadata'] else 'None'}")
                 if info["metadata"] and "chunks_formatted" in info["metadata"]:
-                    logger.debug(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}", flush=True)
+                    logger.debug(f"[SCAN] Chunks data: {info['metadata']['chunks_formatted']}")
                 
                 db.commit()
                 
                 # Verify the metadata was actually stored
                 db.refresh(existing)
-                logger.debug(f"[SCAN] After commit, snapshot_metadata is: {existing.snapshot_metadata is not None}", flush=True)
+                logger.debug(f"[SCAN] After commit, snapshot_metadata is: {existing.snapshot_metadata is not None}")
                 if existing.snapshot_metadata:
-                    logger.debug(f"[SCAN] Metadata keys after commit: {existing.snapshot_metadata.keys()}", flush=True)
+                    logger.debug(f"[SCAN] Metadata keys after commit: {existing.snapshot_metadata.keys()}")
                 
                 new_snapshots.append(existing)
                 logger.info(f"Updated snapshot {snapshot_key} with size {format_bytes(existing.total_size)}")
