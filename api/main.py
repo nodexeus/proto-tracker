@@ -2515,10 +2515,10 @@ async def manual_scan_now(
     summary="Get background scanner diagnostic information"
 )
 async def get_scanner_diagnostic(
-    admin_user: models.Users = Depends(get_current_admin_user),
+    api_key: str = Security(get_api_key),
     db: Session = Depends(get_db)
 ):
-    """Get detailed diagnostic information for troubleshooting scanner issues (admin only)"""
+    """Get detailed diagnostic information for troubleshooting scanner issues"""
     from services.background_scanner import background_scanner
     
     with timer("get_scanner_diagnostic"):
