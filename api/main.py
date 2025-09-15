@@ -89,6 +89,7 @@ app.openapi_version = "3.0.2"
 @app.on_event("startup")
 async def startup_event():
     """Start background services if they were previously enabled"""
+    logger.info("=== STARTUP EVENT TRIGGERED ===")
     db = next(get_db())
     try:
         # Auto-start background poller if enabled
@@ -109,17 +110,39 @@ async def startup_event():
             from services.background_scanner import background_scanner
             
             system_config = crud.get_system_config(db)
+            s3_config = crud.get_s3_config(db)
+            
+            logger.info("=== BACKGROUND SCANNER STARTUP CHECK ===")
+            logger.info(f"  - System config exists: {system_config is not None}")
+            logger.info(f"  - Auto scan enabled: {system_config.auto_scan_enabled if system_config else 'N/A'}")
+            logger.info(f"  - S3 config exists: {s3_config is not None}")
+            logger.info(f"  - S3 bucket configured: {bool(s3_config and s3_config.bucket_name) if s3_config else False}")
+            
             if system_config and system_config.auto_scan_enabled:
-                s3_config = crud.get_s3_config(db)
                 if s3_config and s3_config.bucket_name:
-                    logger.info("Auto-starting background scanner (auto-scan enabled)")
-                    await background_scanner.start(db)
+                    logger.info("=== ATTEMPTING TO AUTO-START BACKGROUND SCANNER ===")
+                    start_result = await background_scanner.start(db)
+                    logger.info(f"=== BACKGROUND SCANNER START RESULT: {start_result} ===")
+                    
+                    # Check if it actually started
+                    status = await background_scanner.get_status(db)
+                    logger.info(f"=== BACKGROUND SCANNER STATUS AFTER START: {status} ===")
                 else:
-                    logger.info("Background scanner not auto-started (S3 not configured)")
+                    logger.warning("Background scanner not auto-started (S3 not configured)")
+                    if not s3_config:
+                        logger.warning("  - No S3 configuration found in database")
+                    elif not s3_config.bucket_name:
+                        logger.warning("  - S3 configuration exists but bucket_name is empty")
             else:
                 logger.info("Background scanner not auto-started (auto-scan not enabled)")
+                if not system_config:
+                    logger.warning("  - No system configuration found in database")
+                elif not system_config.auto_scan_enabled:
+                    logger.info("  - Auto scan is disabled in system settings")
         except Exception as e:
             logger.error(f"Error during startup auto-start of background scanner: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             
     finally:
         db.close()
@@ -2484,6 +2507,22 @@ async def manual_scan_now(
     with timer("manual_scan_now"):
         logger.info(f"Admin {admin_user.email} running manual scan")
         result = await background_scanner.scan_now(db)
+        return result
+
+@app.get(
+    "/admin/scanner/diagnostic",
+    tags=["Admin"],
+    summary="Get background scanner diagnostic information"
+)
+async def get_scanner_diagnostic(
+    admin_user: models.Users = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed diagnostic information for troubleshooting scanner issues (admin only)"""
+    from services.background_scanner import background_scanner
+    
+    with timer("get_scanner_diagnostic"):
+        result = await background_scanner.get_diagnostic_info(db)
         return result
 
 # Notification configuration endpoints

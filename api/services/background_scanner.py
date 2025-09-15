@@ -19,25 +19,49 @@ class BackgroundScannerService:
         
     async def start(self, db: Session) -> Dict[str, Any]:
         """Start the background scanner"""
+        logger.info("Background scanner start() method called")
+        
         if self.is_running:
+            logger.info("Scanner already running, returning early")
             return {"status": "already_running", "message": "Scanner is already running"}
             
         # Get system config to check if auto scanning is enabled
         system_config = crud.get_system_config(db)
         if not system_config or not system_config.auto_scan_enabled:
+            logger.warning("Cannot start scanner: auto scanning not enabled")
             return {"status": "error", "message": "Auto scanning is not enabled in system settings"}
             
         # Check if S3 is configured
         s3_config = crud.get_s3_config(db)
         if not s3_config or not s3_config.bucket_name:
+            logger.warning("Cannot start scanner: S3 not configured")
             return {"status": "error", "message": "S3 configuration not found"}
             
         # Start the background task
-        self.is_running = True
-        self.task = asyncio.create_task(self._scanning_loop())
-        
-        logger.info("Background snapshot scanner started")
-        return {"status": "started", "message": "Background snapshot scanner started successfully"}
+        try:
+            self.is_running = True
+            self.task = asyncio.create_task(self._scanning_loop())
+            logger.info(f"Background task created: {self.task}")
+            
+            # Give the task a moment to start
+            await asyncio.sleep(0.1)
+            
+            if self.task.done():
+                # Task completed immediately, likely an error
+                try:
+                    await self.task  # This will raise the exception if there was one
+                except Exception as e:
+                    logger.error(f"Background task failed immediately: {e}")
+                    self.is_running = False
+                    return {"status": "error", "message": f"Background task failed to start: {str(e)}"}
+            
+            logger.info("Background snapshot scanner started successfully")
+            return {"status": "started", "message": "Background snapshot scanner started successfully"}
+            
+        except Exception as e:
+            logger.error(f"Error creating background task: {e}")
+            self.is_running = False
+            return {"status": "error", "message": f"Failed to create background task: {str(e)}"}
         
     async def stop(self, db: Session) -> Dict[str, Any]:
         """Stop the background scanner"""
@@ -66,6 +90,46 @@ class BackgroundScannerService:
             "auto_scan_interval_hours": system_config.auto_scan_interval_hours if system_config else 6,
             "task_alive": self.task is not None and not self.task.done() if self.task else False
         }
+    
+    async def get_diagnostic_info(self, db: Session) -> Dict[str, Any]:
+        """Get detailed diagnostic information for troubleshooting"""
+        system_config = crud.get_system_config(db)
+        s3_config = crud.get_s3_config(db)
+        
+        diagnostic_info = {
+            "scanner_status": {
+                "is_running": self.is_running,
+                "task_exists": self.task is not None,
+                "task_alive": self.task is not None and not self.task.done() if self.task else False,
+                "task_cancelled": self.task.cancelled() if self.task else False,
+                "task_done": self.task.done() if self.task else False
+            },
+            "system_config": {
+                "exists": system_config is not None,
+                "auto_scan_enabled": system_config.auto_scan_enabled if system_config else None,
+                "auto_scan_interval_hours": system_config.auto_scan_interval_hours if system_config else None,
+                "config_id": system_config.id if system_config else None
+            },
+            "s3_config": {
+                "exists": s3_config is not None,
+                "has_bucket_name": bool(s3_config and s3_config.bucket_name),
+                "bucket_name": s3_config.bucket_name if s3_config else None,
+                "has_endpoint_url": bool(s3_config and s3_config.endpoint_url),
+                "config_id": s3_config.id if s3_config else None
+            },
+            "startup_requirements": {
+                "system_config_check": system_config is not None and system_config.auto_scan_enabled,
+                "s3_config_check": s3_config is not None and bool(s3_config.bucket_name),
+                "all_requirements_met": (
+                    system_config is not None and 
+                    system_config.auto_scan_enabled and 
+                    s3_config is not None and 
+                    bool(s3_config.bucket_name)
+                )
+            }
+        }
+        
+        return diagnostic_info
         
     async def scan_now(self, db: Session) -> Dict[str, Any]:
         """Run a manual scan immediately"""
@@ -88,9 +152,11 @@ class BackgroundScannerService:
         logger.info("Background scanning loop started")
         
         while self.is_running:
+            db = None
             try:
                 # Get a fresh database session
                 db = next(get_db())
+                logger.debug("Database session created for scanning loop")
                 
                 # Check if scanner should still be running
                 system_config = crud.get_system_config(db)
@@ -100,7 +166,9 @@ class BackgroundScannerService:
                     break
                     
                 # Run the scan
+                logger.info("Starting background scan cycle")
                 await self._run_single_scan(db)
+                logger.info("Background scan cycle completed")
                 
                 # Wait for the scanning interval
                 interval_seconds = system_config.auto_scan_interval_hours * 3600
@@ -112,8 +180,18 @@ class BackgroundScannerService:
                 break
             except Exception as e:
                 logger.error(f"Error in scanning loop: {e}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
                 # Wait a bit before retrying on error
                 await asyncio.sleep(300)  # 5 minutes
+            finally:
+                # Ensure database session is properly closed
+                if db:
+                    try:
+                        db.close()
+                        logger.debug("Database session closed")
+                    except Exception as e:
+                        logger.error(f"Error closing database session: {e}")
                 
         logger.info("Background scanning loop ended")
         
@@ -212,114 +290,114 @@ class BackgroundScannerService:
                     # For each protocol directory, list its version subdirectories
                     for prefix_obj in page["CommonPrefixes"]:
                         protocol_dir = prefix_obj.get("Prefix", "")
-                    if not protocol_dir:
-                        continue
+                        if not protocol_dir:
+                            continue
 
-                    total_directories += 1
-                    
-                    # List all version subdirectories
-                    try:
-                        for version_page in paginator.paginate(
-                            Bucket=config.bucket_name,
-                            Prefix=protocol_dir,
-                            Delimiter="/"
-                        ):
-                            if "CommonPrefixes" not in version_page:
-                                continue
-
-                            # Check each version directory for manifest
-                            for version_prefix in version_page["CommonPrefixes"]:
-                                version_dir = version_prefix.get("Prefix", "")
-                                if not version_dir:
+                        total_directories += 1
+                        
+                        # List all version subdirectories
+                        try:
+                            for version_page in paginator.paginate(
+                                Bucket=config.bucket_name,
+                                Prefix=protocol_dir,
+                                Delimiter="/"
+                            ):
+                                if "CommonPrefixes" not in version_page:
                                     continue
 
-                                manifest_path = f"{version_dir}manifest-body.json"
-                                total_manifests_checked += 1
+                                # Check each version directory for manifest
+                                for version_prefix in version_page["CommonPrefixes"]:
+                                    version_dir = version_prefix.get("Prefix", "")
+                                    if not version_dir:
+                                        continue
 
-                                try:
-                                    # Try to get the manifest file
-                                    response = client.get_object(
-                                        Bucket=config.bucket_name, Key=manifest_path
-                                    )
-                                    
-                                    # Parse manifest data
-                                    manifest_data = response["Body"].read()
-                                    import json
-                                    manifest_json = json.loads(manifest_data)
-                                    
-                                    # Also try to get the manifest-header.json file for additional metadata
-                                    header_manifest_path = f"{version_dir}manifest-header.json"
-                                    header_data = None
+                                    manifest_path = f"{version_dir}manifest-body.json"
+                                    total_manifests_checked += 1
+
                                     try:
-                                        header_response = client.get_object(
-                                            Bucket=config.bucket_name, Key=header_manifest_path
+                                        # Try to get the manifest file
+                                        response = client.get_object(
+                                            Bucket=config.bucket_name, Key=manifest_path
                                         )
-                                        header_data = json.loads(
-                                            header_response["Body"].read().decode("utf-8")
+                                        
+                                        # Parse manifest data
+                                        manifest_data = response["Body"].read()
+                                        import json
+                                        manifest_json = json.loads(manifest_data)
+                                        
+                                        # Also try to get the manifest-header.json file for additional metadata
+                                        header_manifest_path = f"{version_dir}manifest-header.json"
+                                        header_data = None
+                                        try:
+                                            header_response = client.get_object(
+                                                Bucket=config.bucket_name, Key=header_manifest_path
+                                            )
+                                            header_data = json.loads(
+                                                header_response["Body"].read().decode("utf-8")
+                                            )
+                                            logger.info(f"Found header manifest: {header_manifest_path}")
+                                        except client.exceptions.NoSuchKey:
+                                            logger.debug(f"No header manifest found at {header_manifest_path}")
+                                        except json.JSONDecodeError as e:
+                                            logger.error(f"Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
+                                        
+                                        # Extract snapshot information
+                                        snapshot_path = version_dir.rstrip('/')
+                                        snapshot_name = snapshot_path.split('/')[-1]
+                                        
+                                        # Check if this snapshot already exists in the database
+                                        existing_snapshot = db.query(models.SnapshotIndex).filter(
+                                            models.SnapshotIndex.protocol_id == protocol.id,
+                                            models.SnapshotIndex.snapshot_id == snapshot_name
+                                        ).first()
+                                        
+                                        if existing_snapshot:
+                                            logger.debug(f"Snapshot {snapshot_name} already exists, skipping")
+                                            continue
+                                        
+                                        # Enhance manifest_json with header data if available
+                                        enhanced_metadata = manifest_json.copy()
+                                        actual_total_size = len(manifest_data)  # Default to manifest size
+                                        
+                                        if header_data:
+                                            total_size_bytes = header_data.get("total_size", 0)
+                                            chunks_count = header_data.get("chunks", 0)
+                                            
+                                            enhanced_metadata.update({
+                                                "total_size_bytes": total_size_bytes,
+                                                "total_size_formatted": format_bytes(total_size_bytes),
+                                                "chunks_count": chunks_count,
+                                                "chunks_formatted": format_number_with_commas(chunks_count),
+                                                "compression": header_data.get("compression", {})
+                                            })
+                                            actual_total_size = total_size_bytes
+                                        
+                                        # Create new snapshot index record
+                                        snapshot_data = schemas.SnapshotIndexCreate(
+                                            protocol_id=protocol.id,
+                                            snapshot_id=snapshot_name,
+                                            index_file_path=manifest_path,
+                                            file_count=len(manifest_json.get('files', [])) if 'files' in manifest_json else 0,
+                                            total_size=actual_total_size,
+                                            created_at=datetime.utcnow(),
+                                            snapshot_metadata=enhanced_metadata
                                         )
-                                        logger.info(f"Found header manifest: {header_manifest_path}")
+                                        
+                                        new_snapshot = crud.create_snapshot_index(db, snapshot_data)
+                                        new_snapshots.append(new_snapshot)
+                                        logger.info(f"Created new snapshot index: {snapshot_name} for protocol {protocol.name}")
+                                        
                                     except client.exceptions.NoSuchKey:
-                                        logger.debug(f"No header manifest found at {header_manifest_path}")
-                                    except json.JSONDecodeError as e:
-                                        logger.error(f"Invalid JSON in header manifest at {header_manifest_path}: {str(e)}")
-                                    
-                                    # Extract snapshot information
-                                    snapshot_path = version_dir.rstrip('/')
-                                    snapshot_name = snapshot_path.split('/')[-1]
-                                    
-                                    # Check if this snapshot already exists in the database
-                                    existing_snapshot = db.query(models.SnapshotIndex).filter(
-                                        models.SnapshotIndex.protocol_id == protocol.id,
-                                        models.SnapshotIndex.snapshot_id == snapshot_name
-                                    ).first()
-                                    
-                                    if existing_snapshot:
-                                        logger.debug(f"Snapshot {snapshot_name} already exists, skipping")
+                                        # Manifest doesn't exist, skip this directory
+                                        logger.debug(f"No manifest found at {manifest_path}")
+                                        continue
+                                    except Exception as e:
+                                        logger.error(f"Error processing manifest {manifest_path}: {e}")
                                         continue
                                     
-                                    # Enhance manifest_json with header data if available
-                                    enhanced_metadata = manifest_json.copy()
-                                    actual_total_size = len(manifest_data)  # Default to manifest size
-                                    
-                                    if header_data:
-                                        total_size_bytes = header_data.get("total_size", 0)
-                                        chunks_count = header_data.get("chunks", 0)
-                                        
-                                        enhanced_metadata.update({
-                                            "total_size_bytes": total_size_bytes,
-                                            "total_size_formatted": format_bytes(total_size_bytes),
-                                            "chunks_count": chunks_count,
-                                            "chunks_formatted": format_number_with_commas(chunks_count),
-                                            "compression": header_data.get("compression", {})
-                                        })
-                                        actual_total_size = total_size_bytes
-                                    
-                                    # Create new snapshot index record
-                                    snapshot_data = schemas.SnapshotIndexCreate(
-                                        protocol_id=protocol.id,
-                                        snapshot_id=snapshot_name,
-                                        index_file_path=manifest_path,
-                                        file_count=len(manifest_json.get('files', [])) if 'files' in manifest_json else 0,
-                                        total_size=actual_total_size,
-                                        created_at=datetime.utcnow(),
-                                        snapshot_metadata=enhanced_metadata
-                                    )
-                                    
-                                    new_snapshot = crud.create_snapshot_index(db, snapshot_data)
-                                    new_snapshots.append(new_snapshot)
-                                    logger.info(f"Created new snapshot index: {snapshot_name} for protocol {protocol.name}")
-                                    
-                                except client.exceptions.NoSuchKey:
-                                    # Manifest doesn't exist, skip this directory
-                                    logger.debug(f"No manifest found at {manifest_path}")
-                                    continue
-                                except Exception as e:
-                                    logger.error(f"Error processing manifest {manifest_path}: {e}")
-                                    continue
-                                    
-                    except Exception as e:
-                        logger.error(f"Error scanning version directories in {protocol_dir}: {e}")
-                        continue
+                        except Exception as e:
+                            logger.error(f"Error scanning version directories in {protocol_dir}: {e}")
+                            continue
 
             db.commit()
             

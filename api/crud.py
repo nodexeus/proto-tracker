@@ -360,9 +360,22 @@ def get_protocol_snapshots(db: Session, protocol_id: int, skip: int = 0, limit: 
     
     query = db.query(models.SnapshotIndex).filter(models.SnapshotIndex.protocol_id == protocol_id)
     
-    # If protocol has a snapshot prefix, filter by it
-    if protocol.snapshot_prefix:
-        # Convert any dashes in prefix to underscores for consistency
+    # Get all active snapshot prefixes for the protocol
+    protocol_prefixes = get_active_protocol_snapshot_prefixes(db, protocol_id)
+    
+    if protocol_prefixes:
+        # Filter by any of the active prefixes
+        prefix_conditions = []
+        for prefix_obj in protocol_prefixes:
+            # Convert any dashes in prefix to underscores for consistency
+            prefix = prefix_obj.prefix.replace('-', '_')
+            prefix_conditions.append(models.SnapshotIndex.snapshot_id.startswith(prefix + '_'))
+        
+        if prefix_conditions:
+            from sqlalchemy import or_
+            query = query.filter(or_(*prefix_conditions))
+    elif protocol.snapshot_prefix:
+        # Fall back to legacy behavior if no new prefixes defined
         prefix = protocol.snapshot_prefix.replace('-', '_')
         query = query.filter(models.SnapshotIndex.snapshot_id.startswith(prefix + '_'))
     
