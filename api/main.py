@@ -9,6 +9,8 @@ import secrets
 import base64
 from datetime import datetime
 from contextlib import asynccontextmanager, contextmanager
+from PIL import Image
+from io import BytesIO
 
 from fastapi import FastAPI, Depends, HTTPException, Security, UploadFile, File, Form, status, Request
 from fastapi.security import APIKeyHeader
