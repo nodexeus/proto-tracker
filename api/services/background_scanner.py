@@ -5,6 +5,7 @@ Background snapshot scanner service that runs on the server
 import asyncio
 import logging
 from datetime import datetime
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 import models, schemas, crud
 from database import get_db
