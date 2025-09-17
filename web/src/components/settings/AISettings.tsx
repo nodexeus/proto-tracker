@@ -85,9 +85,9 @@ export function AISettings() {
     setFormData(prev => ({
       ...prev,
       provider,
-      // Only update model and base_url if they're currently using default values or are empty
-      model: prev.model || DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] || '',
-      base_url: prev.base_url || DEFAULT_BASE_URLS[provider as keyof typeof DEFAULT_BASE_URLS] || '',
+      // Always update model and base_url to the new provider's defaults when switching
+      model: DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] || '',
+      base_url: DEFAULT_BASE_URLS[provider as keyof typeof DEFAULT_BASE_URLS] || '',
     }));
   };
 
@@ -205,7 +205,13 @@ export function AISettings() {
 
               <Select
                 label="AI Provider"
-                description={providerInfo.description}
+                description={
+                  <div>
+                    {providerInfo.description}
+                    <br />
+                    Docs: <a href={providerInfo.docsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--mantine-color-green-6)' }}>{providerInfo.docsUrl}</a>
+                  </div>
+                }
                 value={formData.provider}
                 onChange={(value) => value && handleProviderChange(value)}
                 data={AI_PROVIDERS}
