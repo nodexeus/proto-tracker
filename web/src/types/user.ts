@@ -32,6 +32,7 @@ export interface AuthUser extends User {
 export interface GoogleOAuthResponse {
   access_token: string;
   id_token: string;
+  authorization_code?: string;  // For auth-code flow
   expires_in: number;
   token_type: string;
   scope: string;

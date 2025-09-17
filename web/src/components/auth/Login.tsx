@@ -25,50 +25,33 @@ export function Login({ onSuccess, redirectTo }: LoginProps) {
   const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 
   const googleLogin = isDevMode ? () => {} : useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
+    // Use modern authorization code flow
+    flow: 'auth-code',
+    ux_mode: 'popup',
+    onSuccess: async (codeResponse) => {
       try {
         setError(null);
-        console.log('OAuth response:', tokenResponse);
-        
-        // useGoogleLogin returns a TokenResponse with access_token
-        // We need to fetch user info using the access_token
-        const userInfoResponse = await fetch(
-          `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenResponse.access_token}`
-        );
-        
-        if (!userInfoResponse.ok) {
-          throw new Error('Failed to fetch user information');
-        }
-        
-        const userInfo = await userInfoResponse.json();
-        console.log('User info:', userInfo);
-        
-        // Create a mock ID token for client-only testing
-        // In production, the backend would handle this properly
-        const mockIdToken = btoa(JSON.stringify({
-          sub: userInfo.id,
-          email: userInfo.email,
-          given_name: userInfo.given_name,
-          family_name: userInfo.family_name,
-          picture: userInfo.picture,
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + tokenResponse.expires_in,
-        }));
-        
+        console.log('Authorization code response:', codeResponse);
+
+        // Send the authorization code to the backend
+        // The backend will exchange it for tokens with Google
         const oauthResponse: GoogleOAuthResponse = {
-          access_token: tokenResponse.access_token,
-          id_token: `header.${mockIdToken}.signature`, // Mock JWT format
-          expires_in: tokenResponse.expires_in,
-          token_type: tokenResponse.token_type,
-          scope: tokenResponse.scope,
+          // We're sending the auth code instead of access_token
+          // The backend will handle the exchange
+          access_token: '',  // Will be populated by backend
+          id_token: '',      // Will be populated by backend
+          authorization_code: codeResponse.code,  // Send the auth code
+          expires_in: 3600,
+          token_type: 'Bearer',
+          scope: codeResponse.scope || 'openid email profile',
         };
 
         await login(oauthResponse);
-        
+
         if (onSuccess) {
           onSuccess();
         }
-        
+
         // Redirect if specified
         if (redirectTo) {
           window.location.href = redirectTo;

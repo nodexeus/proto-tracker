@@ -363,8 +363,9 @@ class GitHubConfig(GitHubConfigBase):
 
 # OAuth and Authentication schemas
 class GoogleOAuthRequest(BaseModel):
-    id_token: str
-    access_token: str
+    id_token: Optional[str] = None
+    access_token: Optional[str] = None
+    authorization_code: Optional[str] = None  # For auth-code flow
 
 class LoginResponse(BaseModel):
     user: UserProfile

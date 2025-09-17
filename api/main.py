@@ -330,6 +330,86 @@ def generate_api_key() -> str:
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(64))
 
+def exchange_authorization_code(auth_code: str) -> dict:
+    """Exchange Google authorization code for tokens and user info
+
+    This implements the modern OAuth 2.0 authorization code flow
+    """
+    try:
+        import requests as python_requests
+
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+
+        if not client_id or not client_secret:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured on server"
+            )
+
+        # Exchange authorization code for tokens
+        token_response = python_requests.post(
+            'https://oauth2.googleapis.com/token',
+            data={
+                'code': auth_code,
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'redirect_uri': 'postmessage',  # Special value for popup mode
+                'grant_type': 'authorization_code',
+            }
+        )
+
+        if not token_response.ok:
+            logger.error(f"Token exchange failed: {token_response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Failed to exchange authorization code"
+            )
+
+        tokens = token_response.json()
+        access_token = tokens.get('access_token')
+
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No access token received from Google"
+            )
+
+        # Use the access token to fetch user info
+        user_response = python_requests.get(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+
+        if not user_response.ok:
+            logger.error(f"Failed to fetch user info: {user_response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Failed to fetch user information from Google"
+            )
+
+        user_info = user_response.json()
+
+        # Format the user info to match the expected structure
+        return {
+            'sub': user_info.get('sub'),
+            'email': user_info.get('email'),
+            'email_verified': user_info.get('email_verified'),
+            'given_name': user_info.get('given_name'),
+            'family_name': user_info.get('family_name'),
+            'picture': user_info.get('picture'),
+            'name': user_info.get('name')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exchanging authorization code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error during Google OAuth: {str(e)}"
+        )
+
 def verify_google_token(access_token: str) -> dict:
     """Verify Google access token by fetching user info and return user information"""
     try:
@@ -3147,8 +3227,15 @@ def login_with_google(
                 api_key='dev-mode-api-key'
             )
 
-        # Normal flow: Verify Google access token
-        google_user_info = verify_google_token(oauth_request.access_token)
+        # Check which OAuth flow is being used
+        if oauth_request.authorization_code:
+            # Modern auth-code flow: Exchange authorization code for tokens
+            logger.info("Using authorization code flow")
+            google_user_info = exchange_authorization_code(oauth_request.authorization_code)
+        else:
+            # Legacy implicit flow: Verify access token directly
+            logger.info("Using implicit flow (legacy)")
+            google_user_info = verify_google_token(oauth_request.access_token)
         logger.info(f"Verified Google user: {google_user_info.get('email')}")
         
         # Create or get user

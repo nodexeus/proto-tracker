@@ -19,8 +19,9 @@ export interface LoginResponse {
 }
 
 export interface OAuthLoginRequest {
-  id_token: string;
-  access_token: string;
+  id_token?: string;
+  access_token?: string;
+  authorization_code?: string;  // For auth-code flow
 }
 
 export class AuthService extends ApiService {
@@ -44,10 +45,16 @@ export class AuthService extends ApiService {
     }
 
     // Default: server-side verification
-    const loginData: OAuthLoginRequest = {
-      id_token: oauthResponse.id_token,
-      access_token: oauthResponse.access_token,
-    };
+    const loginData: OAuthLoginRequest = oauthResponse.authorization_code
+      ? {
+          // Modern auth-code flow
+          authorization_code: oauthResponse.authorization_code,
+        }
+      : {
+          // Legacy implicit flow (fallback)
+          id_token: oauthResponse.id_token,
+          access_token: oauthResponse.access_token,
+        };
 
     const response = await this.post<LoginResponse>('/auth/google', loginData);
 
