@@ -21,8 +21,8 @@ export const GOOGLE_OAUTH_CONFIG = {
 
 // Application Constants
 export const APP_CONSTANTS = {
-  APP_NAME: 'Proto Tracker',
-  VERSION: '1.0.1',
+  APP_NAME: 'Protocol Tracker',
+  VERSION: 'v1.0.2',
   SUPPORTED_IMAGE_TYPES: ['image/png'],
   MAX_IMAGE_SIZE: 5 * 1024 * 1024, // 5MB
   DEFAULT_PAGE_SIZE: 20,

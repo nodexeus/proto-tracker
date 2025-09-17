@@ -17,6 +17,7 @@ services:
       # Google OAuth Configuration (set these values)
       - GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - DEV_MODE=${DEV_MODE}
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,6 +30,7 @@ services:
           VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
           VITE_API_URL: ${VITE_API_URL}
           VITE_GOOGLE_REDIRECT_URI: ${VITE_GOOGLE_REDIRECT_URI}
+          VITE_DEV_MODE: ${VITE_DEV_MODE}
     ports:
       - "3000:3000"
     environment:
@@ -38,6 +40,7 @@ services:
       - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
       - VITE_API_URL=${VITE_API_URL}
       - VITE_GOOGLE_REDIRECT_URI=${VITE_GOOGLE_REDIRECT_URI}
+      - VITE_DEV_MODE=${VITE_DEV_MODE}
     depends_on:
       - proto-api
 

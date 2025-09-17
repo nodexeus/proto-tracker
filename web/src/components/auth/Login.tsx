@@ -22,8 +22,9 @@ interface LoginProps {
 export function Login({ onSuccess, redirectTo }: LoginProps) {
   const { login, isLoading } = useAuth();
   const [error, setError] = React.useState<string | null>(null);
+  const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 
-  const googleLogin = useGoogleLogin({
+  const googleLogin = isDevMode ? () => {} : useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
         setError(null);
@@ -85,8 +86,39 @@ export function Login({ onSuccess, redirectTo }: LoginProps) {
   });
 
   const handleGoogleLogin = () => {
+    if (isDevMode) {
+      setError('Please use the Dev Mode Login button below');
+      return;
+    }
     setError(null);
     googleLogin();
+  };
+
+  const handleDevLogin = async () => {
+    setError(null);
+    try {
+      // In dev mode, we can pass dummy OAuth response
+      const devOAuthResponse: GoogleOAuthResponse = {
+        access_token: 'dev-access-token',
+        id_token: 'dev.id.token',
+        expires_in: 3600,
+        token_type: 'Bearer',
+        scope: 'openid email profile',
+      };
+
+      await login(devOAuthResponse);
+
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      if (redirectTo) {
+        window.location.href = redirectTo;
+      }
+    } catch (err) {
+      console.error('Dev login error:', err);
+      setError('Dev login failed. Please check DEV_MODE is enabled.');
+    }
   };
 
   return (
@@ -128,6 +160,25 @@ export function Login({ onSuccess, redirectTo }: LoginProps) {
           >
             {isLoading ? 'Signing in...' : 'Sign in with Google'}
           </Button>
+
+          {/* Show dev login button only in dev mode */}
+          {import.meta.env.VITE_DEV_MODE === 'true' && (
+            <>
+              <Text c="dimmed" size="xs" ta="center">
+                — OR —
+              </Text>
+              <Button
+                fullWidth
+                size="lg"
+                variant="light"
+                color="gray"
+                onClick={handleDevLogin}
+                disabled={isLoading}
+              >
+                Dev Mode Login (No Auth Required)
+              </Button>
+            </>
+          )}
 
           <Text size="xs" c="dimmed" ta="center">
             By signing in, you agree to our terms of service and privacy policy.

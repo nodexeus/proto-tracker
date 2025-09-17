@@ -39,6 +39,7 @@ import { NotificationSettings } from './NotificationSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiService } from '../../services/api';
 import { getApiConfig } from '../../utils';
+import { APP_CONSTANTS } from '../../utils/constants';
 
 interface SystemConfig {
   id: number;
@@ -269,7 +270,7 @@ export function SystemSettings() {
                 </Group>
                 <Group justify="space-between">
                   <Text size="sm" c="dimmed">Version</Text>
-                  <Text size="sm">{systemStatus.version}</Text>
+                  <Text size="sm">{APP_CONSTANTS.VERSION}</Text>
                 </Group>
                 <Group justify="space-between">
                   <Text size="sm" c="dimmed">Database</Text>

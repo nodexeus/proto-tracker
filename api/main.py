@@ -208,6 +208,10 @@ def get_api_key(
     Raises:
         HTTPException: If the API key is invalid, missing, expired, or inactive.
     """
+    # DEV MODE: Bypass authentication
+    if os.getenv('DEV_MODE', '').lower() == 'true':
+        return 'dev-mode-api-key'
+
     if not api_key_header:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -250,31 +254,61 @@ def get_current_user(
     api_key: str = Security(get_api_key), db: Session = Depends(get_db)
 ) -> models.Users:
     """Get current user from API key"""
+    # DEV MODE: Return a mock dev user
+    if os.getenv('DEV_MODE', '').lower() == 'true' and api_key == 'dev-mode-api-key':
+        # Check if dev user exists, create if not
+        dev_user = db.query(models.Users).filter(models.Users.email == 'dev@localhost').first()
+        if not dev_user:
+            dev_user = models.Users(
+                email='dev@localhost',
+                first_name='Dev',
+                last_name='User',
+                is_active=True,
+                is_admin=True,  # Give admin access in dev mode for testing
+                created_at=datetime.utcnow()
+            )
+            db.add(dev_user)
+            db.commit()
+            db.refresh(dev_user)
+
+            # Create a dev API key
+            dev_api_key = models.ApiKey(
+                user_id=dev_user.id,
+                key='dev-mode-api-key',
+                name='Dev Mode Key',
+                description='Auto-created for development mode',
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(dev_api_key)
+            db.commit()
+        return dev_user
+
     # Get the API key object to find the user
     api_key_obj = (
         db.query(models.ApiKey).filter(models.ApiKey.key == api_key).first()
     )
-    
+
     if not api_key_obj:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
         )
-    
+
     user = db.query(models.Users).filter(models.Users.id == api_key_obj.user_id).first()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is inactive",
         )
-    
+
     return user
 
 def get_current_admin_user(
@@ -3056,8 +3090,64 @@ def login_with_google(
     """Login with Google OAuth"""
     with timer("google_oauth_login"):
         logger.info(f"Processing Google OAuth login")
-        
-        # Verify Google access token
+
+        # DEV MODE: Skip Google verification and use dev user
+        if os.getenv('DEV_MODE', '').lower() == 'true':
+            logger.info("DEV MODE: Using mock authentication")
+            # Get or create dev user
+            dev_user = db.query(models.Users).filter(models.Users.email == 'dev@localhost').first()
+            if not dev_user:
+                dev_user = models.Users(
+                    email='dev@localhost',
+                    first_name='Dev',
+                    last_name='User',
+                    is_active=True,
+                    is_admin=True,
+                    created_at=datetime.utcnow()
+                )
+                db.add(dev_user)
+                db.commit()
+                db.refresh(dev_user)
+
+            # Check if dev API key exists
+            api_key = db.query(models.ApiKey).filter(
+                models.ApiKey.user_id == dev_user.id,
+                models.ApiKey.key == 'dev-mode-api-key'
+            ).first()
+
+            if not api_key:
+                api_key = models.ApiKey(
+                    user_id=dev_user.id,
+                    key='dev-mode-api-key',
+                    name='Dev Mode Key',
+                    description='Auto-created for development mode',
+                    is_active=True,
+                    created_at=datetime.utcnow()
+                )
+                db.add(api_key)
+                db.commit()
+
+            # Return dev user profile
+            user_profile = schemas.UserProfile(
+                id=dev_user.id,
+                email=dev_user.email,
+                username=None,
+                name='Dev User',
+                first_name='Dev',
+                last_name='User',
+                picture=None,
+                is_admin=True,
+                is_active=True,
+                created_at=dev_user.created_at,
+                last_login=datetime.utcnow()
+            )
+
+            return schemas.LoginResponse(
+                user=user_profile,
+                api_key='dev-mode-api-key'
+            )
+
+        # Normal flow: Verify Google access token
         google_user_info = verify_google_token(oauth_request.access_token)
         logger.info(f"Verified Google user: {google_user_info.get('email')}")
         

@@ -26,6 +26,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // DEV MODE: Auto-login with dev user
+        if (import.meta.env.VITE_DEV_MODE === 'true') {
+          console.log('DEV MODE: Using mock authentication');
+          const devUser: AuthUser = {
+            id: 1,
+            email: 'dev@localhost',
+            first_name: 'Dev',
+            last_name: 'User',
+            name: 'Dev User',
+            picture: null,
+            is_admin: true,
+            is_active: true,
+            apiKey: 'dev-mode-api-key',
+            created_at: new Date().toISOString(),
+            last_login: new Date().toISOString(),
+          };
+          setUser(devUser);
+          authService.setApiKey('dev-mode-api-key');
+          setIsLoading(false);
+          return;
+        }
+
         const storedUser = authService.initializeFromStorage();
         if (storedUser) {
           // Try to fetch fresh user data from backend to get current admin status
@@ -57,6 +79,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (oauthResponse: GoogleOAuthResponse) => {
     try {
       setIsLoading(true);
+
+      // DEV MODE: Skip actual login
+      if (import.meta.env.VITE_DEV_MODE === 'true') {
+        const devUser: AuthUser = {
+          id: 1,
+          email: 'dev@localhost',
+          first_name: 'Dev',
+          last_name: 'User',
+          name: 'Dev User',
+          picture: null,
+          is_admin: true,
+          is_active: true,
+          apiKey: 'dev-mode-api-key',
+          created_at: new Date().toISOString(),
+          last_login: new Date().toISOString(),
+        };
+        setUser(devUser);
+        authService.setApiKey('dev-mode-api-key');
+        notifications.show({
+          title: 'Login Successful',
+          message: 'DEV MODE: Logged in as Dev User',
+          color: '#7fcf00',
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const authUser = await authService.loginWithGoogle(oauthResponse);
       
       // Fetch additional user info from the backend to get admin status
@@ -137,7 +186,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
 
+  // In dev mode, we don't need Google OAuth Provider
+  if (isDevMode) {
+    return (
+      <AuthContext.Provider value={contextValue}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  // In production mode, require Google Client ID
   if (!googleClientId) {
     console.error('VITE_GOOGLE_CLIENT_ID environment variable is not set');
     return (

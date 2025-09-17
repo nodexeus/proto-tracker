@@ -26,7 +26,9 @@ import {
   IconDeviceDesktop,
   IconShield,
 } from '@tabler/icons-react';
+import { FaGithub } from "react-icons/fa";
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { APP_CONSTANTS } from '../../utils/constants';
 import { useAuth } from '../../hooks/useAuth';
 
 interface AppLayoutProps {
@@ -259,7 +261,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           <AppShell.Section>
             <Divider my="sm" />
             <Text size="xs" c="dimmed" ta="center">
-              Protocol Tracker v1.0.1
+              {APP_CONSTANTS.APP_NAME} {APP_CONSTANTS.VERSION}
+            </Text>
+            <Text size="sm" c="dimmed" ta="center">
+              <a href="https://github.com/nodexeus/proto-tracker" style={{ color: 'inherit', textDecoration: 'none' }}>
+                <FaGithub /> Github
+              </a>
             </Text>
           </AppShell.Section>
         </AppShell.Navbar>
