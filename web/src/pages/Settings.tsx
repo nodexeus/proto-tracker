@@ -66,7 +66,7 @@ export function Settings() {
         <Alert
           icon={<IconShield size={16} />}
           title="Administrator Area"
-          color="yellow"
+          color="blue"
           variant="light"
         >
           <Text size="sm">

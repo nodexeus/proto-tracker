@@ -316,12 +316,12 @@ export function SystemSettings() {
       <Card withBorder>
         <form onSubmit={form.onSubmit(handleSave)}>
           <Stack gap="lg">
-            <Text fw={500} size="lg">
+            {/* <Text fw={500} size="lg">
               System Configuration
-            </Text>
+            </Text> */}
 
             {/* Application Settings */}
-            <div>
+            {/* <div>
               <Group mb="md">
                 <IconSettings size={20} />
                 <Text fw={500}>Application Settings</Text>
@@ -344,9 +344,9 @@ export function SystemSettings() {
                   disabled={saveMutation.isPending}
                 />
               </Stack>
-            </div>
+            </div> */}
 
-            <Divider />
+            {/* <Divider /> */}
 
             {/* File & Security Settings */}
             {/* <div>
@@ -409,7 +409,7 @@ export function SystemSettings() {
             <div>
               <Group mb="md">
                 <IconClock size={20} />
-                <Text fw={500}>Automation Settings</Text>
+                <Text fw={500}>Snapshot Scanner Settings</Text>
               </Group>
               
               <Stack gap="sm">

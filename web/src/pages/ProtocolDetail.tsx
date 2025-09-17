@@ -89,6 +89,15 @@ export function ProtocolDetail() {
     enabled: !!id,
   });
 
+  const {
+    data: snapshotPrefixes,
+    isLoading: snapshotPrefixesLoading,
+  } = useQuery({
+    queryKey: ['protocol-snapshot-prefixes', id],
+    queryFn: () => protocolService.getProtocolSnapshotPrefixes(parseInt(id!)),
+    enabled: !!id,
+  });
+
   // Fetch current block number for protocols with RPC endpoints
   const {
     data: blockData,
@@ -134,7 +143,7 @@ export function ProtocolDetail() {
   };
 
   return (
-    <PageContainer title={protocol.name}>
+    <PageContainer title="Protocol Details">
       <Stack gap="lg">
         {/* Header Section */}
         <Group justify="space-between" align="flex-start">
@@ -204,12 +213,14 @@ export function ProtocolDetail() {
           >
             Updates ({updates?.length || 0})
           </Button>
+          {snapshotPrefixes && snapshotPrefixes.length > 0 && (
           <Button
             variant={activeTab === 'snapshots' ? 'filled' : 'subtle'}
             onClick={() => setActiveTab('snapshots')}
           >
             Snapshots ({snapshots?.length || 0})
           </Button>
+          )}
         </Group>
 
         <Divider />
