@@ -1,8 +1,8 @@
-# Proto-Tracker
+# Protocol Tracker
 
 **Modern Blockchain Protocol Monitoring and Analysis Platform**
 
-Proto-Tracker is a comprehensive blockchain protocol monitoring system that automatically tracks protocol updates, provides AI-powered analysis, and delivers intelligent insights about hard forks, breaking changes, and security updates across multiple blockchain protocols.
+Protocol Tracker is a comprehensive blockchain protocol monitoring system that automatically tracks protocol updates, provides AI-powered analysis, and delivers intelligent insights about hard forks, breaking changes, and security updates across multiple blockchain protocols.
 
 ## 🌟 Key Features
 
@@ -120,8 +120,8 @@ Proto-Tracker is a comprehensive blockchain protocol monitoring system that auto
    VITE_API_URL=http://localhost:8001
 
    # AI Configuration (optional)
-   OPENAI_API_KEY=your_openai_api_key
-   ANTHROPIC_API_KEY=your_anthropic_api_key
+   OPENAI_API_KEY=your_openai_api_key (can be defined later in the admin panel)
+   ANTHROPIC_API_KEY=your_anthropic_api_key (can be defined later in the admin panel)
    ```
 
 3. **Start the Application**
@@ -234,6 +234,11 @@ cd api
 alembic upgrade head              # Apply migrations
 alembic revision --autogenerate  # Generate new migration
 ```
+
+### Local Development Authentication
+Protocol Tracker requires Google OAuth for authentication. To set up local development, you will need to create a Google OAuth client ID and secret. Follow the instructions in the [Google OAuth documentation](https://developers.google.com/identity/protocols/oauth2/openid-connect#obtain-credentials) to create a client ID and secret.
+
+Or alternatively you can set the env variables `VITE_DEV_MODE=true` and `DEV_MODE=true` in the `.env` file which will disable authentication and allow you to use the application without a Google account.  **This setting is NOT recommended for production use.**
 
 ### API Documentation
 
@@ -374,8 +379,8 @@ This project is licensed under GPL v3 License - see the [LICENSE](LICENSE) file 
 ## 🆘 Support
 
 For support and questions:
-- **Issues**: [GitHub Issues](https://github.com/your-repo/proto-tracker/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/proto-tracker/discussions)
+- **Issues**: [GitHub Issues](https://github.com/nodexeus/proto-tracker/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/nodexeus/proto-tracker/discussions)
 - **Documentation**: API docs available at `/docs` endpoint
 
 ## 🚀 Roadmap
@@ -398,4 +403,4 @@ For support and questions:
 
 ---
 
-**Proto-Tracker** - Stay ahead of blockchain protocol changes with intelligent monitoring and AI-powered insights.
+**Protocol Tracker** - Stay ahead of blockchain protocol changes with intelligent monitoring and AI-powered insights.
