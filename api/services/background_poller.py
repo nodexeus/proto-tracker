@@ -162,6 +162,11 @@ class BackgroundPollerService:
             from datetime import datetime, timedelta, timezone
             thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
             
+            is_prerelease = protocol_update.is_prerelease
+            if is_prerelease:
+                logger.info(f"Skipping prerelease update: {protocol_update.tag}")
+                return False
+            
             # Get the update date
             update_date = protocol_update.date
             if isinstance(update_date, str):
