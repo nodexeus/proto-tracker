@@ -4,15 +4,15 @@
 
 Protocol Tracker is a comprehensive blockchain protocol monitoring system that automatically tracks protocol updates, provides AI-powered analysis, and delivers intelligent insights about hard forks, breaking changes, and security updates across multiple blockchain protocols.
 
-## 🌟 Key Features
+## Key Features
 
-### 📊 **Protocol Monitoring**
+### **Protocol Monitoring**
 - **Automated GitHub Tracking**: Monitor multiple blockchain protocols through their GitHub repositories
 - **Release & Tag Detection**: Automatically fetch new releases and tags from configured repositories
 - **Real-time Updates**: Background polling service continuously monitors for new protocol updates
 - **Client-Protocol Mapping**: Track multiple implementations (clients) for each protocol
 
-### 🤖 **AI-Powered Analysis**
+### **AI-Powered Analysis**
 - **Multi-Provider AI Support**: OpenAI (GPT-5), Anthropic (Claude-4), and Local LLMs via Ollama
 - **Intelligent Release Analysis**: Automatic summarization of release notes and changelogs
 - **Hard Fork Detection**: Advanced pattern matching to identify critical network upgrades
@@ -21,31 +21,31 @@ Protocol Tracker is a comprehensive blockchain protocol monitoring system that a
 - **Risk Assessment**: AI-generated risk analysis for upgrade decisions
 - **Confidence Scoring**: AI confidence levels for analysis accuracy
 
-### 🔔 **Smart Notifications**
+### **Smart Notifications**
 - **Multi-Channel Support**: Discord, Slack, Telegram, and generic webhooks
 - **Selective Notifications**: Configure notifications per client/protocol
 - **Hard Fork Alerts**: Priority alerts for critical network upgrades
 - **Customizable Filters**: Filter notifications by update type, priority, or client
 
-### 🗄️ **Data Management**
+### **Data Management**
 - **Comprehensive Database**: PostgreSQL with optimized indexing for fast queries
 - **S3 Integration**: Optional cloud storage for snapshot data and backups
 - **API-First Design**: RESTful API with OpenAPI/Swagger documentation
 - **Advanced Filtering**: Search and filter updates by date, client, priority, or type
 
-### 👤 **User Management**
+### **User Management**
 - **OAuth Authentication**: Google OAuth integration for secure access
 - **API Key Management**: Generate and manage multiple API keys per user
 - **Role-Based Access**: Admin and user roles with appropriate permissions
 - **User Profiles**: Customizable user profiles with preferences
 
-### 📈 **Analytics & Insights**
+### **Analytics & Insights**
 - **Protocol Statistics**: Track update frequency, hard fork history, and trends
 - **Visual Dashboards**: Interactive charts and graphs for protocol activity
 - **Historical Analysis**: Track protocol evolution over time
 - **Export Capabilities**: Export data for further analysis
 
-## 🏗️ Architecture
+## Architecture
 
 ### Backend (FastAPI)
 - **Fast & Modern**: Built with FastAPI for high performance and automatic API documentation
@@ -85,7 +85,7 @@ Protocol Tracker is a comprehensive blockchain protocol monitoring system that a
 ### AI Analysis
 ![AI Analysis](./assets/img/ai-analysis.png)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -182,7 +182,7 @@ Protocol Tracker is a comprehensive blockchain protocol monitoring system that a
 4. Start the background poller
 5. Monitor status and recent results
 
-## 🛠️ Development
+## Development
 
 ### Project Structure
 
@@ -253,7 +253,7 @@ Key API endpoints:
 - `GET /ai/analysis/{update_id}` - Get AI analysis
 - `POST /ai/analyze` - Trigger AI analysis
 
-## 🔧 Configuration
+## Configuration
 
 ### AI Providers
 
@@ -297,7 +297,7 @@ Key API endpoints:
 - Get bot token and chat IDs
 - Configure in notification settings
 
-## 📊 Features Deep Dive
+## Features Deep Dive
 
 ### Hard Fork Detection
 
@@ -325,7 +325,7 @@ The AI system uses advanced pattern matching to identify hard forks:
 - **Manual Override**: Force immediate polling when needed
 - **Status Monitoring**: Real-time status of background services
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -354,7 +354,7 @@ The AI system uses advanced pattern matching to identify hard forks:
 - Use local LLMs for high-volume deployments
 - Configure appropriate timeouts for your environment
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these guidelines:
 
@@ -372,18 +372,18 @@ We welcome contributions! Please follow these guidelines:
 - **TypeScript**: Use ESLint and Prettier configurations
 - **Git**: Use conventional commits format
 
-## 📄 License
+## License
 
 This project is licensed under GPL v3 License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## Support
 
 For support and questions:
 - **Issues**: [GitHub Issues](https://github.com/nodexeus/proto-tracker/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/nodexeus/proto-tracker/discussions)
 - **Documentation**: API docs available at `/docs` endpoint
 
-## 🚀 Roadmap
+## Roadmap
 
 ### Upcoming Features
 - **Multi-Network Support**: Cross-chain protocol tracking
@@ -394,12 +394,12 @@ For support and questions:
 - **Alert Automation**: Smart alerting based on AI analysis
 
 ### Recent Updates
-- ✅ AI-powered release analysis
-- ✅ Hard fork detection system
-- ✅ Multi-provider AI support
-- ✅ Background polling optimization
-- ✅ Modern React frontend
-- ✅ Comprehensive notification system
+- AI-powered release analysis
+- Hard fork detection system
+- Multi-provider AI support
+- Background polling optimization
+- Modern React frontend
+- Comprehensive notification system
 
 ---
 
